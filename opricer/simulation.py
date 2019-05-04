@@ -2,18 +2,10 @@
 # from algo import pde
 import numpy as np
 import datetime
+from opricer.data import models
+from opricer.algo import pde
 
+a = models.EurOption('A', datetime.datetime(2011, 1, 1))
+b = models.Underlying('b', datetime.datetime(2010, 1, 1), 100)
 
-class Small:
-
-    def __init__(self, leg):
-        self.leg = leg
-
-    @classmethod
-    def add_leg(cls):
-        cls.leg += 1
-        return cls.leg
-
-
-a = Small(1)
-a.add_leg()
+a._attach_asset(100, b)

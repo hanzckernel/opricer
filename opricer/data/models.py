@@ -20,7 +20,9 @@ and so is the format
 
 import numpy as np
 from datetime import datetime
-int_rate = lamdbda x: 0.05
+@np.vectorize
+def int_rate(x):
+    return 0.05
 
 
 class Underlying(object):
@@ -37,7 +39,7 @@ class Underlying(object):
         self.price = spot_price
         self.ticker = ticker
         self.drift = None  # get these later
-        self.vol = None  # get these later
+        self.vol = 0.2  # TODO: this part need to be changed
         self.div = dividend
 
 
@@ -54,8 +56,9 @@ class Option(object):
         self.spot_price = []
         self.currency = []
         self._time = []
-        self._vol = []
+        self._vol = []  # TODO: This need to be modified when get data
         self._drift = []
+        self.div = 0  # TODO: add dividend structure later
         for underlying in underlyings:
             self.spot_price.append(underlying.price)
             self._time.append(underlying.time)
@@ -79,29 +82,32 @@ class EurOption(Option):
     def __init__(self, ticker, expiry):
         super().__init__(ticker, expiry)
 
-    def _payoff_fct(self, underlying):
-        pass
-
     def gen_pde_coeff(self):
         try:
             end_time = self.time_to_maturity.days / 365  # use start = 0
         except ValueError:
             raise ("Underlying not attached")
 
-        def second_order_coeff(asset, t):
-            return (self._vol * asset) ** 2 / 2
+        @np.vectorize
+        def coef2(asset, t):
+            return (sum(self._vol) * asset) ** 2 / 2
 
-        def first_order_coeff(asset, t):
-            return (int_rate(t) - div_rate(t)) * asset
+        @np.vectorize
+        def coef1(asset, t):
+            return (int_rate(t) - self.div) * asset
 
-        def zero_order_coeff(asset, t):
+        @np.vectorize
+        def coef0(asset, t):
             return -int_rate(t)
-        return end_time, self.__dict__, second_order_coeff, first_order_coeff, \
-            zero_order_coeff
+        return end_time, [coef2, coef1, coef0]
 
-    @staticmethod
-    def payoff(optype='Call'):
-        return lambda asset: max(asset, )
+    def payoff(self, price, optype='call'):
+        if optype == 'call':
+            return np.clip(price - self.strike, 0, None)
+        elif optype == 'put':
+            return np.max(self.strike - price, 0, None)
+        else:
+            raise ValueError('GG!')
 
 
 class AmeOption(Option):
@@ -110,8 +116,8 @@ class AmeOption(Option):
         super().__init__(ticker, expiry)
 
 
-# %%
-a = EurOption("A", datetime(2011, 1, 1))
-b = Underlying("b", datetime(2010, 1, 1), 100)
-Option._attach_asset(a, 100, b)
-a._load_pde_coeff()
+# # %%
+# a = EurOption("A", datetime(2011, 1, 1))
+# b = Underlying("b", datetime(2010, 1, 1), 100)
+# Option._attach_asset(a, 100, b)
+# a.payoff(110)

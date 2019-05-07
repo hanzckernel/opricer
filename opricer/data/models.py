@@ -69,13 +69,11 @@ class Option(object):
 
     def payoff(self, price):
         if self.otype == 'call':
-            return np.clip(price - self.strike, 0, None)
+            return np.clip(price - self.strike, 0, None).astype(float)
         elif self.otype == 'put':
-            return np.clip(self.strike - price, 0, None)
-        elif self.otype == 'barrier':
-            raise ValueError('Invalid option type')
+            return np.clip(self.strike - price, 0, None).astype(float)
         else:
-            raise ValueError('Unknown option type')
+            raise ValueError('Incorrect option type')
 
 
 class EurOption(Option):
@@ -114,6 +112,10 @@ class AmeOption(Option):
 
 
 class BarOption(EurOption):  # Barrier options
+    """
+    Currently this class only consider call/put options with knock-out barriers.
+    Further knock-in features will be built up in a later phase.
+    """
 
     def __init__(self, otype, expiry, rebate=0):
         super().__init__(otype, expiry)
@@ -122,7 +124,7 @@ class BarOption(EurOption):  # Barrier options
     def _attach_asset(self, barrier, strike_price, *underlyings):
         """
         barrier expect a list := [lower_bar, higher_bar]. If one of barrier does
-        not exist, write 0. e.g., an down option has barrier = [lower_bar, 0]
+        not exist, write None e.g., an down option has barrier = [lower_bar, None]
         """
         try:
             super()._attach_asset(strike_price, *underlyings)
@@ -131,9 +133,22 @@ class BarOption(EurOption):  # Barrier options
             # TODO: How to overwrite parent exceptions?
             print(f"{e} or Forget to write barrier?")
 
+    # def payoff(self, price):
+    #     lower_bar, higher_bar = self.barrier
+    #     if self.otype == 'call':
+    #         price = np.clip(price - self.strike, 0, higher_bar).astype(float)
+    #     elif self.otype == 'put':
+    #         price = np.clip(self.strike - price, lower_bar, higher_bar).astype(float)
+    #     else:
+    #         raise Exception('Unknown option type')
+    #     price[price == lower_bar], price[price == higher_bar] = self.rebate, self.rebate
+    #     return price
+        # This is forced as x >= None is deprecated in python3.
 
-# # %%
-# a = EurOption("A", datetime(2011, 1, 1))
-# b = Underlying("b", datetime(2010, 1, 1), 100)
-# Option._attach_asset(a, 100, b)
-# a.payoff(110)
+
+# # # %%
+# a = BarOption('call', datetime(2011, 1, 1))
+# b = Underlying(datetime(2010, 1, 1), 100)
+# a._attach_asset([40, 200], 100, b)
+# a.payoff(np.arange(100.23, 123.4, 2.6))
+#

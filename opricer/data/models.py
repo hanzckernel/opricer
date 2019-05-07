@@ -34,10 +34,9 @@ class Underlying(object):
     We expect all time entries to be datetime form.
     """
 
-    def __init__(self, ticker, spot_time, spot_price, dividend=0.0):
+    def __init__(self, spot_time, spot_price, dividend=0.0):
         self.time = spot_time
         self.price = spot_price
-        self.ticker = ticker
         self.drift = None  # get these later
         self.vol = 0.2  # TODO: this part need to be changed
         self.div = dividend
@@ -45,32 +44,38 @@ class Underlying(object):
 
 class Option(object):
 
-    def __init__(self, ticker, expiry_date):
-        self.ticker = ticker
+    def __init__(self, otype, expiry_date):
+        self.otype = otype
         self.expiry = expiry_date
 
     def _attach_asset(self, strike_price, *underlyings):
         self.strike = strike_price
         self.int_rate = int_rate
-        # We will fetch current 3-month Treasury rate from the web
         self.spot_price = []
         self.currency = []
         self._time = []
         self._vol = []  # TODO: This need to be modified when get data
         self._drift = []
-        self.div = 0  # TODO: add dividend structure later
         for underlying in underlyings:
             self.spot_price.append(underlying.price)
             self._time.append(underlying.time)
             self._vol.append(underlying.vol)
             self._drift.append(underlying.drift)
+            self.div = underlying.div
         if len(self._time) == 1:
             self.time_to_maturity = self.expiry - self._time[0]
         else:
-            raise ValueError("Underlyings have different spot times")
+            raise ValueError('Undelyings have different spot times')
 
-    def _payoff_fct(self, underlying):
-        pass
+    def payoff(self, price):
+        if self.otype == 'call':
+            return np.clip(price - self.strike, 0, None)
+        elif self.otype == 'put':
+            return np.clip(self.strike - price, 0, None)
+        elif self.otype == 'barrier':
+            raise ValueError('Invalid option type')
+        else:
+            raise ValueError('Unknown option type')
 
 
 class EurOption(Option):
@@ -79,8 +84,8 @@ class EurOption(Option):
     AmeOption can be seen as EurOptio when dealing with pricing.
     """
 
-    def __init__(self, ticker, expiry):
-        super().__init__(ticker, expiry)
+    def __init__(self, otype, expiry):
+        super().__init__(otype, expiry)
 
     def gen_pde_coeff(self):
         try:
@@ -101,19 +106,30 @@ class EurOption(Option):
             return -int_rate(t)
         return end_time, [coef2, coef1, coef0]
 
-    def payoff(self, price, optype='call'):
-        if optype == 'call':
-            return np.clip(price - self.strike, 0, None)
-        elif optype == 'put':
-            return np.max(self.strike - price, 0, None)
-        else:
-            raise ValueError('GG!')
-
 
 class AmeOption(Option):
 
-    def __init__(self, ticker, expiry):
-        super().__init__(ticker, expiry)
+    def __init__(self, otype, expiry):
+        super().__init__(otype, expiry)
+
+
+class BarOption(EurOption):  # Barrier options
+
+    def __init__(self, otype, expiry, rebate=0):
+        super().__init__(otype, expiry)
+        self.rebate = rebate
+
+    def _attach_asset(self, barrier, strike_price, *underlyings):
+        """
+        barrier expect a list := [lower_bar, higher_bar]. If one of barrier does
+        not exist, write 0. e.g., an down option has barrier = [lower_bar, 0]
+        """
+        try:
+            super()._attach_asset(strike_price, *underlyings)
+            self.barrier = barrier
+        except TypeError as e:
+            # TODO: How to overwrite parent exceptions?
+            print(f"{e} or Forget to write barrier?")
 
 
 # # %%

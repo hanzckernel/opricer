@@ -92,8 +92,11 @@ def option_price_all(model):
     But as that is not related to linear system, we can ignore it (partially)"""
     try:  # for barrier option case, use Dirchlet.
         lower_bar, higher_bar = model.barrier
-        outlayer = model.payoff(X[0][1:-1])
-        total_output = [outlayer]
+        lower_bar, higher_bar = float(lower_bar or 0), float(higher_bar or np.inf)
+        out = model.payoff(X[0][1:-1])
+        damp_layer = np.where((X[0][1:-1] <= lower_bar) | (X[0][1:-1] >= higher_bar))
+        out[damp_layer] = model.rebate
+        total_output = [out]
         lower_bdd = lower * A[1]
         upper_bdd = upper * C[-2]
         for time_pt in range(1, time_no):
@@ -102,14 +105,15 @@ def option_price_all(model):
             extra_vec = np.zeros(step_no-2)
             extra_vec[[0, -1]] = lower_bdd[-time_pt] + lower_bdd[-time_pt - 1], \
                 upper_bdd[-time_pt] + upper_bdd[-time_pt - 1]
-            outlayer = np.linalg.solve(mat_left, mat_right @ outlayer + extra_vec)
-            outlayer = np.clip(outlayer, lower_bar, higher_bar)
-            outlayer[outlayer == lower_bar] = model.rebate
-            outlayer[outlayer == higher_bar] = model.rebate
-            total_output.append(outlayer)
+            out = np.linalg.solve(mat_left, mat_right @ out + extra_vec)
+            out[damp_layer] = model.rebate
+            total_output.append(out)
+        # TODO: Note the shape of dirichlet output is diff from von Neumann
+        # total_output = np.vstack(np.full((1, time_no), time_no),
+        #                 total_output, np.full(1, time_no, np.inf))
     except AttributeError:  # For vanilla option case, use von Neumann
-        outlayer = model.payoff(X[0])
-        total_output = [outlayer]
+        out = model.payoff(X[0])
+        total_output = [out]
         lower_bdd = lower * A[0]
         upper_bdd = upper * C[-2]
         for time_pt in range(1, time_no):
@@ -120,8 +124,8 @@ def option_price_all(model):
             extra_vec = np.zeros(step_no)
             extra_vec[[0, -1]] = lower_bdd[-time_pt] + lower_bdd[-time_pt - 1],
             upper_bdd[-time_pt] + upper_bdd[-time_pt - 1]
-            outlayer = np.linalg.solve(mat_left, mat_right @ outlayer + extra_vec)
-            total_output.append(outlayer)
+            out = np.linalg.solve(mat_left, mat_right @ out + extra_vec)
+            total_output.append(out)
     return total_output
 
 

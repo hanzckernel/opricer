@@ -6,11 +6,12 @@ import datetime
 from opricer.data import models
 from opricer.algo import pde
 
-a = models.BarOption("call", datetime.datetime(2011, 1, 1), rebate=12)
+a = models.EurOption("put", datetime.datetime(2011, 1, 1))
 b = models.Underlying(datetime.datetime(2010, 1, 1), 100, dividend=0.0)
 
 a.__dict__
-a._attach_asset([80, None], 100, b)
-a.otype
+a._attach_asset(100, b)
 # %%
 pde.option_price_begin(a)
+
+# # %%

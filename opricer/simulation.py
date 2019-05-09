@@ -8,10 +8,8 @@ from opricer.algo import pde
 
 a = models.EurOption("put", datetime.datetime(2011, 1, 1))
 b = models.Underlying(datetime.datetime(2010, 1, 1), 100, dividend=0.0)
-
 a.__dict__
 a._attach_asset(100, b)
+b._attach_asset
 # %%
-pde.option_price_begin(a)
-
-# # %%
+print(pde.option_price_begin(a))

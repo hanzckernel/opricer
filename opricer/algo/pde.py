@@ -92,15 +92,18 @@ def option_price_all(model):
     But as that is not related to linear system, we can ignore it (partially)"""
     try:  # for barrier option case, use Dirchlet.
         lower_bar, higher_bar = model.barrier
-        lower_bar, higher_bar = float(lower_bar or 0), float(higher_bar or np.inf)
+        lower_bar, higher_bar = float(
+            lower_bar or 0), float(higher_bar or np.inf)
         out = model.payoff(X[0][1:-1])
-        damp_layer = np.where((X[0][1:-1] <= lower_bar) | (X[0][1:-1] >= higher_bar))
+        damp_layer = np.where((X[0][1:-1] <= lower_bar)
+                              | (X[0][1:-1] >= higher_bar))
         out[damp_layer] = model.rebate
         total_output = [out]
         lower_bdd = lower * A[1]
         upper_bdd = upper * C[-2]
         for time_pt in range(1, time_no):
-            mat_left, mat_right = matrix_left[-time_pt - 1].A, matrix_right[-time_pt].A
+            mat_left, mat_right = matrix_left[-time_pt -
+                                              1].A, matrix_right[-time_pt].A
             mat_left, mat_right = mat_left[1:-1, 2:-2], mat_right[1:-1, 2:-2]
             extra_vec = np.zeros(step_no-2)
             extra_vec[[0, -1]] = lower_bdd[-time_pt] + lower_bdd[-time_pt - 1], \
@@ -117,7 +120,8 @@ def option_price_all(model):
         lower_bdd = lower * A[0]
         upper_bdd = upper * C[-2]
         for time_pt in range(1, time_no):
-            mat_left, mat_right = matrix_left[-time_pt - 1].A, matrix_right[-time_pt].A
+            mat_left, mat_right = matrix_left[-time_pt -
+                                              1].A, matrix_right[-time_pt].A
             mat_left[:, [2, -3]] += mat_left[:, [0, -1]]
             mat_right[:, [2, -3]] += mat_right[:, [0, -1]]
             mat_left, mat_right = mat_left[:, 1:-1], mat_right[:, 1:-1]

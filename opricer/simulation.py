@@ -13,3 +13,6 @@ a.__dict__
 a._attach_asset(100, b)
 # %%
 print(pde.option_price_begin(a))
+
+
+# %%

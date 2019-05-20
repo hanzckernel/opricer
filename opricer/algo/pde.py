@@ -1,156 +1,158 @@
+# %%
+import abc
 import datetime
 import numpy as np
 from scipy.sparse import diags
 from scipy import integrate
 from opricer.data import models
-
-a = models.EurOption('call', datetime.datetime(2011, 1, 1))
-b = models.Underlying(datetime.datetime(2010, 1, 1), 100)
-a._attach_asset(100, b)
-
-# %%
+from opricer.tools.mathtool import force_broadcast
 
 
-def gen_grid(low_val, high_val, end_time, start_time=0, dt=0.01, dS=10):
-    time_samples = np.arange(start_time, end_time + dt, dt)
-    asset_samples = np.arange(low_val, high_val + dS, dS)
-    X, Y = np.meshgrid(asset_samples, time_samples)
-    return X, Y
+class GenericSolver(abc.ABC):
+
+    @abc.abstractmethod
+    def get_price(model):
+        pass
+
+    @classmethod
+    def _gen_grid(cls, low_val, high_val, start_time, end_time, time_no, asset_no):
+        cls.time_samples = np.linspace(start_time, end_time, time_no)
+        cls.asset_samples = np.linspace(low_val, high_val, asset_no)
 
 
-def load_sim(model):
-    end_time, [coef2, coef1, coef0] = model.gen_pde_coeff()
-    spot_price = sum(model.spot_price)  # TODO: Change this part when vectorize
-    X, Y = gen_grid(0, 5 * spot_price, end_time)
-    # TODO: This price range can later be scaled up to paramters.
-    time_no = X.shape[0]
-    step_no = X.shape[1]
-    dS, dt = X[0, 1] - X[0, 0], Y[1, 0] - Y[0, 0]
-    v1, v2 = dt / (dS ** 2), dt / dS
-    A = (v1 * coef2(X, Y) / 2 - v2 * coef1(X, Y) / 4).T
-    B = (-v1 * coef2(X, Y) + dt * coef0(X, Y) / 2).T
-    C = (v1 * coef2(X, Y) / 2 + v2 * coef1(X, Y) / 4).T
-    return A, B, C, X, Y, time_no, step_no, spot_price
+class EurSolver(GenericSolver):
+    def __init__(self, time_no=1000, asset_no=100, low_val=0, high_val=5):
+        self.time_no = time_no
+        self.asset_no = asset_no
+        self.low_val = low_val
+        self.high_val = high_val
+
+    def __call__(self, model):
+        return self.get_price(model)[0]
+
+    @staticmethod
+    def _gen_pde_coeff(model):
+        try:
+            @force_broadcast
+            def coef2(asset, t):
+                # TODO: This needs further redress
+                return (model._vol[0](asset, t) * asset) ** 2 / 2
+
+            @force_broadcast
+            def coef1(asset, t):
+                return (model.int_rate(t) - model.div) * asset
+
+            @force_broadcast
+            def coef0(asset, t):
+                return - model.int_rate(t)
+            return coef2, coef1, coef0
+        except AttributeError:
+            raise('Underlying not attached')
+
+    def _load_sim(self, model):
+        coef2, coef1, coef0 = self._gen_pde_coeff(model)
+        spot_price = np.array(model.spot_price)
+        self.low_val *= spot_price
+        self.high_val *= spot_price
+        self._gen_grid(self.low_val, self.high_val, 0,
+                       model.time_to_maturity, self.time_no, self.asset_no)
+        self.dS = dS = (self.high_val - self.low_val) / self.asset_no
+        dt = model.time_to_maturity / self.time_no
+        v1, v2 = dt / (dS ** 2), dt / dS
+        X, Y = np.meshgrid(self.asset_samples, self.time_samples)
+        self.A = (v1 * coef2(X, Y) / 2 - v2 * coef1(X, Y) / 4).T
+        self.B = (-v1 * coef2(X, Y) + dt * coef0(X, Y) / 2).T
+        self.C = (v1 * coef2(X, Y) / 2 + v2 * coef1(X, Y) / 4).T
+
+    def _prepare_matrix(self, model):
+        self.C[0] += self.A[0]
+        self.A[-1] += self.C[-1]
+        matrix_left = [diags((-self.A[:, i], 1-self.B[:, i], -self.C[:, i]), offsets=[0, 1, 2],
+                             shape=(self.asset_no, self.asset_no + 2)) for i in range(self.time_no)]
+        matrix_right = [diags((self.A[:, i], 1+self.B[:, i], self.C[:, i]), offsets=[0, 1, 2],
+                              shape=(self.asset_no, self.asset_no + 2)) for i in range(self.time_no)]
+        if model.otype.lower() == "call":
+            lower_bdd, upper_bdd = 0, self.dS
+        elif model.otype.lower() == "put":
+            lower_bdd, upper_bdd = -self.dS, 0
+        else:
+            raise Exception('Invalid model type')
+        lower_bdd = lower_bdd * self.A[0]
+        upper_bdd = upper_bdd * self.C[-1]
+        return matrix_left, matrix_right, lower_bdd, upper_bdd
+
+    def get_price(self, model):
+        """
+        Prepare coefficient now. For convience we follow convention of Wilmott.
+        """
+        self._load_sim(model)
+        matrix_left, matrix_right, lower_bdd, upper_bdd = self._prepare_matrix(
+            model)
+        del (self.A, self.B, self.C, self.dS)
+        """
+        Prepare 3D tensor (time-list of sparse diagonal matrix) for simulation.
+        Later only expand one slice to full matrix so as to save storage.
+        """
+        out = model.payoff(self.asset_samples)
+        total_output = [out]
+
+        for time in range(1, self.time_no):
+            mat_left = matrix_left[-time - 1].A
+            mat_right = matrix_right[-time].A
+            mat_left, mat_right = mat_left[:, 1:-1], mat_right[:, 1:-1]
+            extra_vec = np.zeros(self.asset_no)
+            extra_vec[[0, -1]] = lower_bdd[-time] + lower_bdd[-time - 1], \
+                upper_bdd[-time] + upper_bdd[-time - 1]
+            out = np.linalg.solve(
+                mat_left, (mat_right @ out).ravel() + extra_vec)
+            total_output.append(out)
+        total_output.reverse()
+        return total_output
 
 
-def boundary_condition(model):
-    """
-    This part accounts for boundary condition. By default we use Dirichlet
-    boundary condition for barrier option. If it's not barrier option, then for
-    vanilla option we switch to Neumann boundary condition.
+class BarSolver(EurSolver):
 
-    WARNING: To make sure this boundary_condition function properly, we need to
-    make the simulation range large enough.
-    """
-    A, B, C, X, Y, time_no, step_no, spot_price = load_sim(model)
-    try:  # use Dirchlet boundary condition
-        lower_lvl, upper_lvl = model.barrier
-        lower = np.full(time_no, float(lower_lvl or 0))  # change None to 0
-        upper = np.full(time_no, float(upper_lvl or 0))
+    def _prepare_matrix(self, model):
+        matrix_left, matrix_right = super()._prepare_matrix(model)[0:2]
+        lower_bdd, upper_bdd = [np.full(self.time_no, lvl)
+                                for lvl in model.barrier]
+        to_endtime = model.time_to_maturity - self.time_samples
         if model.otype == 'call':
-            lower = np.maximum(np.zeros(time_no), lower)
-            upper = np.minimum(upper,
-                               X[-1, -1] * np.exp(-model.div * (Y[-1, -1] - Y[:, 0])) -
-                               model.strike * np.exp(-model.int_rate(Y[:, 0]) * (Y[-1, -1] - Y[:, 0])))
+            upper_bdd = np.minimum(upper_bdd,
+                                   self.high_val * np.exp(-model.div * (to_endtime)) -
+                                   model.strike * np.exp(-model.int_rate(self.time_samples) * (to_endtime)))
         # TODO: hard-coded. need to changed
         elif model.otype == 'put':
-            upper = np.maximum(np.zeros(time_no), upper)
-            lower = np.minimum(lower,
-                               -X[0, 0] * np.exp(-model.int_rate(Y[:, 0]) * (Y[-1, -1] - Y[:, 0])) +
-                               model.strike * np.exp(-model.div * (Y[-1, -1] - Y[:, 0])))
-        else:  # use Neumann Boundary condition
+            lower_bdd = np.minimum(lower_bdd,
+                                   -self.low_val * np.exp(-model.int_rate(self.time_samples) * (to_endtime)) +
+                                   model.strike * np.exp(-model.div * (to_endtime)))
+        else:
             raise ValueError('Unknown option type')
-    except AttributeError:  # use von Neumann boundary condition
-        if model.otype == "call":
-            lower = 0
-            upper = X[0, 1] - X[0, 0]
-        if model.otype == "put":
-            lower = X[0, 0] - X[0, 1]  # only a concise notation of previous
-            upper = 0
-    except:
-        raise Exception('Invalid model type')
-    finally:
-        return lower, upper
+        return matrix_left, matrix_right, lower_bdd, upper_bdd
 
-
-def option_price_all(model):
-    """
-    Prepare coefficient now. For convience we follow convention of Wilmott.
-    """
-    A, B, C, X, Y, time_no, step_no, spot_price = load_sim(model)
-    lower, upper = boundary_condition(model)
-    """
-    Prepare 3D tensor (time-list of sparse diagonal matrix) for simulation.
-    Later only expand one slice to full matrix so as to save storage.
-    """
-    matrix_left = [diags((-A[:, i], 1-B[:, i], -C[:, i]), offsets=[0, 1, 2],
-                         shape=(step_no, step_no + 2)) for i in range(time_no)]
-    matrix_right = [diags((A[:, i], 1+B[:, i], C[:, i]), offsets=[0, 1, 2],
-                          shape=(step_no, step_no + 2)) for i in range(time_no)]
-
-    """the following is not fully optimised.
-    But as that is not related to linear system, we can ignore it (partially)"""
-    try:  # for barrier option case, use Dirchlet.
+    def get_price(self, model):
+        self._load_sim(model)
+        matrix_left, matrix_right, lower_bdd, upper_bdd = self._prepare_matrix(
+            model)
+        lower_bdd = lower_bdd * self.A[1]
+        upper_bdd = upper_bdd * self.C[-2]
+        del (self.A, self.B, self.C, self.dS)
         lower_bar, higher_bar = model.barrier
-        lower_bar, higher_bar = float(
-            lower_bar or 0), float(higher_bar or np.inf)
-        out = model.payoff(X[0][1:-1])
-        damp_layer = np.where((X[0][1:-1] <= lower_bar)
-                              | (X[0][1:-1] >= higher_bar))
+        out = model.payoff(self.asset_samples)
+        damp_layer = np.where((self.asset_samples <= lower_bar)
+                              | (self.asset_samples >= higher_bar))
         out[damp_layer] = model.rebate
         total_output = [out]
-        lower_bdd = lower * A[1]
-        upper_bdd = upper * C[-2]
-        for time_pt in range(1, time_no):
-            mat_left, mat_right = matrix_left[-time_pt -
-                                              1].A, matrix_right[-time_pt].A
+        for time in range(1, self.time_no):
+            mat_left, mat_right = matrix_left[-time -
+                                              1].A, matrix_right[-time].A
             mat_left, mat_right = mat_left[1:-1, 2:-2], mat_right[1:-1, 2:-2]
-            extra_vec = np.zeros(step_no-2)
-            extra_vec[[0, -1]] = lower_bdd[-time_pt] + lower_bdd[-time_pt - 1], \
-                upper_bdd[-time_pt] + upper_bdd[-time_pt - 1]
-            out = np.linalg.solve(mat_left, mat_right @ out + extra_vec)
+            extra_vec = np.zeros(self.asset_no-2)
+            extra_vec[[0, -1]] = lower_bdd[-time] + lower_bdd[-time - 1], \
+                upper_bdd[-time] + upper_bdd[-time - 1]
+            out[1:-1] = np.linalg.solve(mat_left,
+                                        (mat_right @ out[1:-1]).ravel() + extra_vec).reshape(-1, 1)
             out[damp_layer] = model.rebate
             total_output.append(out)
-        # TODO: Note the shape of dirichlet output is diff from von Neumann
-        # total_output = np.vstack(np.full((1, time_no), time_no),
-        #                 total_output, np.full(1, time_no, np.inf))
-    except AttributeError:  # For vanilla option case, use von Neumann
-        out = model.payoff(X[0])
-        total_output = [out]
-        lower_bdd = lower * A[0]
-        upper_bdd = upper * C[-2]
-        for time_pt in range(1, time_no):
-            mat_left, mat_right = matrix_left[-time_pt -
-                                              1].A, matrix_right[-time_pt].A
-            mat_left[:, [2, -3]] += mat_left[:, [0, -1]]
-            mat_right[:, [2, -3]] += mat_right[:, [0, -1]]
-            mat_left, mat_right = mat_left[:, 1:-1], mat_right[:, 1:-1]
-            extra_vec = np.zeros(step_no)
-            extra_vec[[0, -1]] = lower_bdd[-time_pt] + lower_bdd[-time_pt - 1],
-            upper_bdd[-time_pt] + upper_bdd[-time_pt - 1]
-            out = np.linalg.solve(mat_left, mat_right @ out + extra_vec)
-            total_output.append(out)
-    return total_output
-
-
-def option_price_begin(model):
-    return option_price_all(model)[-1]
-
-# In[ ]:
-
-
-'''all the boundary_condition will be initiated after testing'''
-
-
-def boundary(option='call', barrier=False):
-    if barrier and option == 'call':
-        lower_bdd = np.zeros(time_no)
-        upper_bdd = -strike_price * \
-            np.exp(-back_quad(int_rate, time_samples)) + high_val * \
-            np.exp(-back_quad(div_rate, time_samples))
-    if barrier and option == 'put':
-        lower_bdd = -low_val * np.exp(-back_quad(div_rate, time_samples)) + \
-            strike_price * np.exp(-back_quad(int_rate, time_samples))
-        upper_bdd = np.zeros(time_no)
-    else:
-        raise Exception('Unknown option type')
+        total_output.reverse()
+        return total_output

@@ -3,9 +3,8 @@ import abc
 import datetime
 import numpy as np
 from scipy.sparse import diags
-from scipy import integrate
 from opricer.data import models
-from opricer.tools.mathtool import force_broadcast
+from opricer.tools.mathtool import force_broadcast, back_quad
 
 
 class GenericSolver(abc.ABC):
@@ -16,12 +15,12 @@ class GenericSolver(abc.ABC):
 
     @classmethod
     def _gen_grid(cls, low_val, high_val, start_time, end_time, time_no, asset_no):
-        cls.time_samples = np.linspace(start_time, end_time, time_no)
-        cls.asset_samples = np.linspace(low_val, high_val, asset_no)
+        cls.time_samples = np.linspace(start_time, end_time, int(time_no))
+        cls.asset_samples = np.linspace(low_val, high_val, int(asset_no))
 
 
 class EurSolver(GenericSolver):
-    def __init__(self, time_no=1000, asset_no=100, low_val=0, high_val=5):
+    def __init__(self, time_no=101, asset_no=51, low_val=0, high_val=5):
         self.time_no = time_no
         self.asset_no = asset_no
         self.low_val = low_val
@@ -40,7 +39,7 @@ class EurSolver(GenericSolver):
 
             @force_broadcast
             def coef1(asset, t):
-                return (model.int_rate(t) - model.div) * asset
+                return (model.int_rate(t) - model.div(t)) * asset
 
             @force_broadcast
             def coef0(asset, t):
@@ -104,9 +103,107 @@ class EurSolver(GenericSolver):
             extra_vec[[0, -1]] = lower_bdd[-time] + lower_bdd[-time - 1], \
                 upper_bdd[-time] + upper_bdd[-time - 1]
             out = np.linalg.solve(
-                mat_left, (mat_right @ out).ravel() + extra_vec)
+                mat_left, (mat_right @ out).ravel() + extra_vec).reshape(-1, 1)
             total_output.append(out)
         total_output.reverse()
+        return total_output
+
+
+class AmeSolver(EurSolver):
+
+    def _load_sim(self, model):
+        super()._load_sim(model)
+        if model.otype.lower() == 'call':
+            h_row, l_row = [1-self.B[1]], []
+            for i in range(2, self.asset_no-1):
+                l_addrow = -self.A[i]/h_row[i-2]
+                h_addrow = 1 - self.B[i] + l_addrow * self.C[i-1]
+                h_row.append(h_addrow)
+                l_row.append(l_addrow)
+
+        elif model.otype.lower() == 'put':
+            h_row, l_row = [1-self.B[-2]], []
+            for i in range(2, self.asset_no-1):
+                l_addrow = -self.A[-i]/h_row[i-2]
+                h_addrow = 1 - self.B[-i-1] + l_addrow * self.C[-i-1]
+                h_row.append(h_addrow)
+                l_row.append(l_addrow)
+            h_row.reverse(), l_row.reverse()
+        else:
+            raise ValueError('Not Applicable')
+        self.H, self.L = np.array(h_row).T, np.array(l_row).T
+
+    def _prepare_matrix(self, model):
+        matrix_right = [diags((self.A[:, i], 1+self.B[:, i], self.C[:, i]), offsets=[0, 1, 2],
+                              shape=(self.asset_no, self.asset_no + 2)) for i in range(self.time_no)]
+        matrix_left = [diags((-self.A[:, i], 1-self.B[:, i], -self.C[:, i]), offsets=[0, 1, 2],
+                             shape=(self.asset_no, self.asset_no + 2)) for i in range(self.time_no)]
+        matrix_Lleft = [diags(
+            [self.L[i], 1], [-1, 0], shape=(self.asset_no-2, self.asset_no-2)) for i in range(self.time_no)]
+        matrix_Uleft = [diags([self.H[i], -self.C[1:-1, i]], [0, 1],
+                              shape=(self.asset_no-2, self.asset_no-2)) for i in range(self.time_no)]
+        # to_endtime = model.time_to_maturity - self.time_samples
+        if model.otype == 'call':
+            upper_bdd = np.maximum(self.high_val - model.strike,
+                                   self.high_val * np.exp(-back_quad(model.div, self.time_samples)) -
+                                   model.strike * np.exp(-back_quad(model.int_rate, self.time_samples)))
+            lower_bdd = 0
+        # TODO: hard-coded. need to changed
+        elif model.otype == 'put':
+            lower_bdd = np.minimum(model.strike - self.low_val,
+                                   -self.low_val * np.exp(-back_quad(model.int_rate, self.time_samples)) +
+                                   model.strike * np.exp(-back_quad(model.div, self.time_samples)))
+            upper_bdd = 0
+        else:
+            raise ValueError('Unknown option type')
+        return matrix_right, matrix_Lleft, matrix_Uleft, lower_bdd, upper_bdd
+
+    def get_price(self, model, beautify = True):
+        self._load_sim(model)
+        matrix_right, matrix_Lleft, matrix_Uleft, lower_bdd, upper_bdd = self._prepare_matrix(
+            model)
+
+        lower_bdd = lower_bdd * self.A[1]
+        upper_bdd = upper_bdd * self.C[-2]
+        # del (self.A, self.B, self.C, self.dS)
+        out = model.payoff(self.asset_samples)
+        out[[0, -1]] = 0  # this is for the convience of looping.
+        begin = out.copy()
+        total_output = [begin]
+        if model.otype.lower() == 'call':
+            for time in range(1, self.time_no):
+                mat_Lleft, mat_Uleft = matrix_Lleft[-time -
+                                                    1].A,  matrix_Uleft[-time-1].A
+                mat_right = matrix_right[-time].A[1:-1, 2:-2]
+                extra_vec = np.zeros(self.asset_no-2)
+                extra_vec[[0, -1]] = lower_bdd[-time] + lower_bdd[-time - 1], \
+                    upper_bdd[-time] + upper_bdd[-time - 1]
+                out[1:-1] = np.linalg.solve(
+                    mat_Lleft, (mat_right @ out[1:-1]).ravel() + extra_vec).reshape(-1, 1)
+                # for i in np.nditer(out[-2:0:-1], op_flags = ['readwrite']):
+                for i in range(2, self.asset_no):
+                    out[-i] = max((out[-i] + self.C[-i, time]
+                                   * out[1-i])/self.H[time, 1-i], begin[-i])
+                total_output.append(out)
+        if model.otype.lower() == 'put':
+            for time in range(1, self.time_no):
+                mat_Lleft, mat_Uleft = matrix_Lleft[-time -
+                                                    1].A,  matrix_Uleft[-time-1].A
+                mat_right = matrix_right[-time].A[1:-1, 2:-2]
+                extra_vec = np.zeros(self.asset_no-2)
+                extra_vec[[0, -1]] = lower_bdd[-time] + lower_bdd[-time - 1], \
+                    upper_bdd[-time] + upper_bdd[-time - 1]
+                out[1:-1] = np.linalg.solve(
+                    mat_Uleft, (mat_right @ out[1:-1]).ravel() + extra_vec).reshape(-1, 1)
+                # use trick here out[0] = 0
+                for i in range(1, self.asset_no - 1):
+                    out[i] = max(
+                        (out[i] - self.L[time, i - 2] * out[i-1]), begin[i])
+                total_output.append(out)
+        total_output.reverse()
+        if beautify:
+            total_output = np.array(total_output)
+            total_output[:, [0, -1]] = 2 * total_output[:,[1, -2]] - total_output[:,[2, -3]]
         return total_output
 
 
@@ -114,18 +211,18 @@ class BarSolver(EurSolver):
 
     def _prepare_matrix(self, model):
         matrix_left, matrix_right = super()._prepare_matrix(model)[0:2]
-        lower_bdd, upper_bdd = [np.full(self.time_no, lvl)
-                                for lvl in model.barrier]
-        to_endtime = model.time_to_maturity - self.time_samples
+        # lower_bdd, upper_bdd = [np.full(self.time_no, lvl)
+        #                         for lvl in model.barrier]
+        # to_endtime = model.time_to_maturity - self.time_samples
         if model.otype == 'call':
             upper_bdd = np.minimum(upper_bdd,
-                                   self.high_val * np.exp(-model.div * (to_endtime)) -
-                                   model.strike * np.exp(-model.int_rate(self.time_samples) * (to_endtime)))
+                                   self.high_val * np.exp(-back_quad(model.div, self.time_samples)) -
+                                   model.strike * np.exp(-back_quad(model.int_rate, self.time_samples)))
         # TODO: hard-coded. need to changed
         elif model.otype == 'put':
             lower_bdd = np.minimum(lower_bdd,
-                                   -self.low_val * np.exp(-model.int_rate(self.time_samples) * (to_endtime)) +
-                                   model.strike * np.exp(-model.div * (to_endtime)))
+                                   -self.low_val * np.exp(-back_quad(model.int_rate, self.time_samples)) +
+                                   model.strike * np.exp(-back_quad(model.div, self.time_samples)))
         else:
             raise ValueError('Unknown option type')
         return matrix_left, matrix_right, lower_bdd, upper_bdd

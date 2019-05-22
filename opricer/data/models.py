@@ -23,7 +23,7 @@ and so is the format
 import abc
 import numpy as np
 from datetime import datetime
-def int_rate(t): return 0.5
+def int_rate(t): return 0.05
 
 
 class World(abc.ABC):
@@ -39,12 +39,12 @@ class Underlying(object):
     We expect all time entries to be datetime form.
     """
 
-    def __init__(self, spot_time, spot_price, dividend=0.0):
+    def __init__(self, spot_time, spot_price, dividend=0.2):
         self.time = spot_time
         self.price = spot_price
         self.drift = None  # get these later
         self.vol = lambda asset, t: 0.2
-        self.div = dividend
+        self.div = lambda asset: dividend
 
 
 class Option(object):

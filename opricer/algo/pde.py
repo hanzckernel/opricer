@@ -131,7 +131,7 @@ class AmeSolver(EurSolver):
             h_row.reverse(), l_row.reverse()
         else:
             raise ValueError('Not Applicable')
-        self.H, self.L = np.array(h_row).T, np.array(l_row).T
+        self.H, self.L = np.array(h_row), np.array(l_row)
 
     def _prepare_matrix(self, model):
         matrix_right = [diags((self.A[:, i], 1+self.B[:, i], self.C[:, i]), offsets=[0, 1, 2],
@@ -139,8 +139,8 @@ class AmeSolver(EurSolver):
         matrix_left = [diags((-self.A[:, i], 1-self.B[:, i], -self.C[:, i]), offsets=[0, 1, 2],
                              shape=(self.asset_no, self.asset_no + 2)) for i in range(self.time_no)]
         matrix_Lleft = [diags(
-            [self.L[i], 1], [-1, 0], shape=(self.asset_no-2, self.asset_no-2)) for i in range(self.time_no)]
-        matrix_Uleft = [diags([self.H[i], -self.C[1:-1, i]], [0, 1],
+            [self.L[:, i], 1], [-1, 0], shape=(self.asset_no-2, self.asset_no-2)) for i in range(self.time_no)]
+        matrix_Uleft = [diags([self.H[:, i], -self.C[1:-1, i]], offsets=[0, 1],
                               shape=(self.asset_no-2, self.asset_no-2)) for i in range(self.time_no)]
         # to_endtime = model.time_to_maturity - self.time_samples
         if model.otype == 'call':
@@ -158,14 +158,14 @@ class AmeSolver(EurSolver):
             raise ValueError('Unknown option type')
         return matrix_right, matrix_Lleft, matrix_Uleft, lower_bdd, upper_bdd
 
-    def get_price(self, model, beautify = True):
+    def get_price(self, model, beautify=True):
         self._load_sim(model)
         matrix_right, matrix_Lleft, matrix_Uleft, lower_bdd, upper_bdd = self._prepare_matrix(
             model)
 
         lower_bdd = lower_bdd * self.A[1]
         upper_bdd = upper_bdd * self.C[-2]
-        # del (self.A, self.B, self.C, self.dS)
+        del (self.A, self.B)
         out = model.payoff(self.asset_samples)
         out[[0, -1]] = 0  # this is for the convience of looping.
         begin = out.copy()
@@ -183,7 +183,7 @@ class AmeSolver(EurSolver):
                 # for i in np.nditer(out[-2:0:-1], op_flags = ['readwrite']):
                 for i in range(2, self.asset_no):
                     out[-i] = max((out[-i] + self.C[-i, time]
-                                   * out[1-i])/self.H[time, 1-i], begin[-i])
+                                   * out[1-i])/self.H[1-i, time], begin[-i])
                 total_output.append(out)
         if model.otype.lower() == 'put':
             for time in range(1, self.time_no):
@@ -198,22 +198,23 @@ class AmeSolver(EurSolver):
                 # use trick here out[0] = 0
                 for i in range(1, self.asset_no - 1):
                     out[i] = max(
-                        (out[i] - self.L[time, i - 2] * out[i-1]), begin[i])
+                        (out[i] - self.L[i - 2, time] * out[i-1]), begin[i])
                 total_output.append(out)
         total_output.reverse()
         if beautify:
             total_output = np.array(total_output)
-            total_output[:, [0, -1]] = 2 * total_output[:,[1, -2]] - total_output[:,[2, -3]]
+            total_output[:, [0, -1]] = 2 * \
+                total_output[:, [1, -2]] - total_output[:, [2, -3]]
         return total_output
-
 
 class BarSolver(EurSolver):
 
     def _prepare_matrix(self, model):
         matrix_left, matrix_right = super()._prepare_matrix(model)[0:2]
+        lower_bdd, upper_bdd = model.barrier
         # lower_bdd, upper_bdd = [np.full(self.time_no, lvl)
-        #                         for lvl in model.barrier]
-        # to_endtime = model.time_to_maturity - self.time_samples
+                                # for lvl in model.barrier]
+        to_endtime = model.time_to_maturity - self.time_samples
         if model.otype == 'call':
             upper_bdd = np.minimum(upper_bdd,
                                    self.high_val * np.exp(-back_quad(model.div, self.time_samples)) -
@@ -231,8 +232,8 @@ class BarSolver(EurSolver):
         self._load_sim(model)
         matrix_left, matrix_right, lower_bdd, upper_bdd = self._prepare_matrix(
             model)
-        lower_bdd = lower_bdd * self.A[1]
-        upper_bdd = upper_bdd * self.C[-2]
+        lower_bdd = lower_bdd * self.A[1] if np.isfinite(lower_bdd).all() else np.zeros(self.time_no)
+        upper_bdd = upper_bdd * self.C[-2] if np.isfinite(upper_bdd).all() else np.zeros(self.time_no)
         del (self.A, self.B, self.C, self.dS)
         lower_bar, higher_bar = model.barrier
         out = model.payoff(self.asset_samples)

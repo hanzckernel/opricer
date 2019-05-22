@@ -31,7 +31,4 @@ class AnalyticSolver(pde.EurSolver):
             return strike_disc * norm.cdf(-d2) - self.asset_samples * np.exp(-D*T) * norm.cdf(-d1)
 
 
-arr = np.linspace(1, 10, 10)
-arr
-
 # %%

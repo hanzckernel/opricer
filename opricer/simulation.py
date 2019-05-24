@@ -4,7 +4,7 @@
 import numpy as np
 import datetime
 from opricer.data import models
-from opricer.algo import pde, analytics
+from opricer.algo import pde, analytics, mc
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Cursor
 from scipy.sparse import diags
@@ -22,6 +22,7 @@ solver = analytics.AnalyticSolver()
 solver1 = pde.EurSolver()
 solver2 = pde.AmeSolver()
 solver3 = pde.BarSolver()
+Msolver1 = mc.EurMCSolver()
 # print(solver3.get_price(d))
 # print(solver1(a).shape)
 # print(c.__dict__)
@@ -33,7 +34,9 @@ def plot(options, solvers, with_cursor=False):
     fig = plt.figure(figsize=(15, 8))
     ax = plt.axes()
     price = solver(b)
+    MCprice = Msolver1(b)
     ax.plot(solver.asset_samples, price, label='AnalyticSol')
+    ax.plot(Msolver1.asset_samples, Msolver1(b), label='MC')
     for opt, sol in zip(options, solvers):
         ax.plot(solver.asset_samples, sol(opt)[0], label=type(
             sol).__name__ + type(opt).__name__)
@@ -44,7 +47,7 @@ def plot(options, solvers, with_cursor=False):
     plt.gcf()
 
 
-plot([b, c, d], [solver1, solver2, solver3])
+plot([b], [solver1])
 
 
 # %%

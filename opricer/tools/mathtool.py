@@ -40,13 +40,10 @@ def force_no_use(func, *args, **kwargs):
 
 def back_quad(func, arr):
     '''Receive a range of points and evaluate the area below graph from T to 0'''
-    out_list = [0]
-    for i in range(1, arr.size):
-        increment = arr[-i] - arr[-i-1]
-        to_add = increment * func((arr[-i] + arr[-i-1]) / 2)
-        out_list.append(to_add)
-    out_arr = np.array(out_list)
-    return np.cumsum(out_arr)
+    diff = np.ediff1d(arr, to_end=0)
+    diff *= func(arr + diff/2)
+    diff = np.cumsum(np.flip(diff))
+    return diff
 
 
 # %%

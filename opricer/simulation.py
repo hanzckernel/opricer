@@ -4,39 +4,47 @@
 import numpy as np
 import datetime
 from opricer.data import models
-from opricer.algo import pde
-from opricer.tests.test_algo import AnalyticSolver
+from opricer.algo import pde, analytics
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Cursor
 from scipy.sparse import diags
 from scipy.linalg import lu_solve, lu_factor
 
 
-a = models.EurOption(datetime.datetime(2011, 1, 1), 'put')
-b = models.Underlying(datetime.datetime(2010, 1, 1), 100)
+a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
+b = models.EurOption(datetime.datetime(2011, 1, 1), 'put')
 c = models.AmeOption(datetime.datetime(2011, 1, 1), 'put')
 d = models.BarOption(datetime.datetime(2011, 1, 1), 'put')
-a._attach_asset(100, b)
-c._attach_asset(100, b)
-d._attach_asset([50, np.inf], 100, b)
-solver = AnalyticSolver()
+b._attach_asset(100, a)
+c._attach_asset(100, a)
+d._attach_asset([50, np.inf], 100, a)
+solver = analytics.AnalyticSolver()
 solver1 = pde.EurSolver()
 solver2 = pde.AmeSolver()
 solver3 = pde.BarSolver()
 # print(solver3.get_price(d))
-# print(solver3(c))
+# print(solver1(a).shape)
 # print(c.__dict__)
-fig = plt.figure(figsize=(15, 8))
-ax = plt.axes()
-price = solver(a)
-ax.plot(solver.asset_samples, price, label='Analy')
-ax.plot(solver.asset_samples, solver1(a), label='Sim')
-ax.plot(solver.asset_samples, solver2(c), label='Ame')
-ax.plot(solver.asset_samples, solver3(d), label='Bar')
-ax.legend(loc='best')
-cursor = Cursor(ax, useblit=True, linewidth=2)
-plt.show()
-plt.gcf()
+
+# print(np.gradient(price, axis=0))
+
+
+def plot(options, solvers, with_cursor=False):
+    fig = plt.figure(figsize=(15, 8))
+    ax = plt.axes()
+    price = solver(b)
+    ax.plot(solver.asset_samples, price, label='AnalyticSol')
+    for opt, sol in zip(options, solvers):
+        ax.plot(solver.asset_samples, sol(opt)[0], label=type(
+            sol).__name__ + type(opt).__name__)
+    ax.legend(loc='best')
+    if with_cursor:
+        cursor = Cursor(ax, useblit=True, linewidth=2)
+    plt.show()
+    plt.gcf()
+
+
+plot([b, c, d], [solver1, solver2, solver3])
 
 
 # %%
@@ -51,3 +59,4 @@ plt.gcf()
 #              [-1, 0, 1], shape=(48, 48)).A
 
 # %%
+#

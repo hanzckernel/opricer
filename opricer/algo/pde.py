@@ -5,9 +5,10 @@ import numpy as np
 from scipy.sparse import diags
 from opricer.data import models
 from opricer.tools.mathtool import force_broadcast, back_quad
+from functools import partial
 
 
-class GenericSolver(abc.ABC):
+class GenericPDESolver(abc.ABC):
 
     @abc.abstractmethod
     def get_price(model):
@@ -19,15 +20,26 @@ class GenericSolver(abc.ABC):
         cls.asset_samples = np.linspace(low_val, high_val, int(asset_no))
 
 
-class EurSolver(GenericSolver):
-    def __init__(self, time_no=101, asset_no=51, low_val=0, high_val=5):
+
+
+class EurSolver(GenericPDESolver):
+    def __init__(self, time_no=100, asset_no=50, low_val=0, high_val=5):
         self.time_no = time_no
         self.asset_no = asset_no
         self.low_val = low_val
         self.high_val = high_val
 
-    def __call__(self, model):
-        return self.get_price(model)[0]
+    def __call__(self, model, greeks = ['price']):
+        total_output = self.get_price(model)
+        self.dS = (self.high_val - self.low_val) / (self.asset_no-1)
+        self.dt = model.time_to_maturity / (self.time_no-1)
+        return [{
+            'price': partial(lambda arr: arr[0]),
+            'Delta': partial(lambda arr: np.gradient(arr, float(self.dS), axis = 1)[0]),
+            'Theta': partial(lambda arr: np.gradient(arr, float(self.dt), axis = 0)[0]),
+            'Gamma': partial(lambda arr: np.gradient(np.gradient(arr, self.dS,
+                            axis =1), self.dS, axis= 1)),}[greek](total_output) for greek in greeks
+        ]
 
     @staticmethod
     def _gen_pde_coeff(model):
@@ -105,8 +117,13 @@ class EurSolver(GenericSolver):
             out = np.linalg.solve(
                 mat_left, (mat_right @ out).ravel() + extra_vec).reshape(-1, 1)
             total_output.append(out)
-        total_output.reverse()
+        total_output.reverse() 
         return total_output
+
+
+
+
+
 
 
 class AmeSolver(EurSolver):

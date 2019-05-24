@@ -39,7 +39,7 @@ class Underlying(object):
     We expect all time entries to be datetime form.
     """
 
-    def __init__(self, spot_time, spot_price, dividend=0.2):
+    def __init__(self, spot_time, spot_price, dividend=0.0):
         self.time = spot_time
         self.price = spot_price
         self.drift = None  # get these later

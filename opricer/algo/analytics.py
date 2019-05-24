@@ -2,7 +2,7 @@
 # coding: utf-8
 # %%
 from opricer.data import models
-from opricer.algo import pde
+from . import pde
 import datetime
 import numpy as np
 from scipy.stats import norm

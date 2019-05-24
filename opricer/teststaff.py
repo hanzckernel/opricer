@@ -9,8 +9,10 @@ from math import sqrt
 from opricer.tools.mathtool import force_broadcast
 
 
-arr = np.arange(0, 1, 0.1)
-np.tile(arr, (5, 1))
+arr = np.arange(0, 1, 0.1).reshape(2, 5)
+arr2 = np.arange(0, 2, 0.1)
+
+print(2 ** 3/2)
 
 
 # %%

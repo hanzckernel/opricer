@@ -23,6 +23,7 @@ solver1 = pde.EurSolver()
 solver2 = pde.AmeSolver()
 solver3 = pde.BarSolver()
 Msolver1 = mc.EurMCSolver()
+Msolver2 = mc.logMCSolver()
 # print(solver3.get_price(d))
 # print(solver1(a).shape)
 # print(c.__dict__)
@@ -36,7 +37,8 @@ def plot(options, solvers, with_cursor=False):
     price = solver(b)
     MCprice = Msolver1(b)
     ax.plot(solver.asset_samples, price, label='AnalyticSol')
-    ax.plot(Msolver1.asset_samples, Msolver1(b), label='MC')
+    ax.plot(Msolver1.asset_samples, MCprice, label='MC')
+    ax.plot(Msolver1.asset_samples, Msolver2(b), label='logMC')
     for opt, sol in zip(options, solvers):
         ax.plot(solver.asset_samples, sol(opt)[0], label=type(
             sol).__name__ + type(opt).__name__)
@@ -47,7 +49,7 @@ def plot(options, solvers, with_cursor=False):
     plt.gcf()
 
 
-plot([b], [solver1])
+plot([], [])
 
 
 # %%

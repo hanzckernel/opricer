@@ -46,7 +46,6 @@ class EurSolver(GenericPDESolver):
         try:
             @force_broadcast
             def coef2(asset, t):
-                # TODO: This needs further redress
                 return (model._vol[0](asset, t) * asset) ** 2 / 2
 
             @force_broadcast
@@ -165,7 +164,6 @@ class AmeSolver(EurSolver):
                                    self.high_val * np.exp(-back_quad(model.div, self.time_samples)) -
                                    model.strike * np.exp(-back_quad(model.int_rate, self.time_samples)))
             lower_bdd = 0
-        # TODO: hard-coded. need to changed
         elif model.otype == 'put':
             lower_bdd = np.minimum(model.strike - self.low_val,
                                    -self.low_val * np.exp(-back_quad(model.int_rate, self.time_samples)) +
@@ -236,7 +234,6 @@ class BarSolver(EurSolver):
             upper_bdd = np.minimum(upper_bdd,
                                    self.high_val * np.exp(-back_quad(model.div, self.time_samples)) -
                                    model.strike * np.exp(-back_quad(model.int_rate, self.time_samples)))
-        # TODO: hard-coded. need to changed
         elif model.otype == 'put':
             lower_bdd = np.minimum(lower_bdd,
                                    -self.low_val * np.exp(-back_quad(model.int_rate, self.time_samples)) +

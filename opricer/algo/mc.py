@@ -15,27 +15,21 @@ class GenericMCSolver(abc.ABC):
         pass
 
     @classmethod
-    def _gen_path(cls, model, low_val, high_val, asset_no, time_no, path_no,
+    def _gen_grid(cls, model, low_val, high_val, asset_no, time_no, path_no,
                   start_time, end_time, include_all=False):
         cls.dt = (end_time - start_time)/time_no
         cls.dS = (high_val - low_val)/asset_no
         cls.time_samples = np.arange(start_time, end_time, cls.dt)
         cls.asset_samples = np.arange(low_val, high_val, cls.dS)
         cls.sqrt_dt = sqrt(cls.dt)
-        paths = np.tile(cls.asset_samples, (path_no, 1))
-        for time in cls.time_samples:
-            paths += paths * (model.int_rate(time) * cls.dt +
-                              model._vol[0](paths, time) * cls.sqrt_dt *
-                              randn(path_no, asset_no))
-            # if include_all:
-            #     paths.append(add)
-            # else:
-            #     paths = add
-        return paths
+
+    @abc.abstractmethod
+    def get_price(self, model):
+        pass
 
 
 class EurMCSolver(GenericMCSolver):
-    def __init__(self, path_no=500, asset_no=100, time_no=100, high_val=5, low_val=0):
+    def __init__(self, path_no=500, asset_no=200, time_no=100, high_val=5, low_val=0):
         self.asset_no = asset_no
         self.time_no = time_no
         self.path_no = path_no
@@ -45,21 +39,82 @@ class EurMCSolver(GenericMCSolver):
     def __call__(self, model):
         return self.get_price(model)
 
-    def get_price(self, model):
+    @staticmethod
+    def _gen_coeff(model):
+        try:
+            def coef_dt(asset, t):
+                return asset * model.int_rate(t)
+
+            def coef_dW(asset, t):
+                return asset * model._vol[0](asset, t)
+            return coef_dW, coef_dt
+        except AttributeError:
+            raise('Underlying not attached')
+
+    def _gen_parameter(self, model):
         low_val, high_val = model.strike * self.low_val, model.strike * self.high_val
-        paths = self._gen_path(model, low_val, high_val, self.asset_no, self.time_no, self.path_no,
-                               0, model.time_to_maturity)
-        paths = np.exp(back_quad(model.int_rate, self.time_samples)[-1]
-                       ) * model.payoff(paths)
-        paths = np.mean(paths, axis=0)
-        return paths
+        random_set = randn(self.time_no, self.path_no)
+        self._gen_grid(model, low_val, high_val, self.asset_no, self.time_no, self.path_no,
+                       0, model.time_to_maturity)
+        return random_set
+
+    def _gen_path(self, model):
+        coef_dW, coef_dt = self._gen_coeff(model)
+        random_set = self._gen_parameter(model)
+        asset = np.tile(self.asset_samples, (self.path_no, 1))
+        for idx, time in zip(range(self.time_no), self.time_samples):
+            asset += coef_dW(asset, time) * self.dt + \
+                coef_dt(asset, time) * random_set[idx].reshape(-1, 1)
+        return asset
+
+    def get_price(self, model):
+        asset = self._gen_path(model)
+        disc = np.exp(back_quad(model.int_rate, self.time_samples))
+        asset = model.payoff(asset)
+        # variance = np.var(asset, axis=0)
+        asset = disc[-1] * np.mean(asset, axis=0)
+        return asset
+
+
+class logMCSolver(EurMCSolver):
+
+    @staticmethod
+    def _gen_coeff(model):
+
+        try:
+            def coef_dt(asset, t):
+                return model.int_rate(t) - model._vol[0](asset, t) ** 2 / 2
+
+            def coef_dW(asset, t):
+                return model._vol[0](asset, t)
+            return coef_dW, coef_dt
+        except AttributeError:
+            raise('Underlying not attached')
+
+    def _gen_path(self, model):
+        coef_dW, coef_dt = self._gen_coeff(model)
+        random_set = self._gen_parameter(model)
+        asset = np.tile(self.asset_samples, (self.path_no, 1))
+        # TODO: big problem , uneven grid!!!!!
+        log_asset = np.log(self.asset_samples)
+        for idx, time in zip(range(self.time_no), self.time_samples):
+            log_asset = coef_dW(asset, time) * self.dt + \
+                coef_dt(asset, time) * random_set[idx].reshape(-1, 1)
+            asset = np.exp(log_asset) * asset
+        return asset
+
+    def get_price(self, model):
+        asset = self._gen_path(model)
+        disc = np.exp(back_quad(model.int_rate, self.time_samples))
+        asset = model.payoff(asset)
+        asset = disc[-1] * np.mean(asset, axis=0)
+        return asset
 
 
 a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
 b = models.EurOption(datetime.datetime(2011, 1, 1), 'put')
 b._attach_asset(100, a)
-solver = EurMCSolver()
-solver(b)
-
+solver = logMCSolver()
+print(solver(b), b.strike)
 
 # %%

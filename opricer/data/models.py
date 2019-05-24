@@ -18,11 +18,16 @@ and so is the format
 """
 
 
+
+
+import abc
 import numpy as np
 from datetime import datetime
-@np.vectorize
-def int_rate(x):
-    return 0.05
+def int_rate(t): return 0.05
+
+
+class World(abc.ABC):
+    pass
 
 
 class Underlying(object):
@@ -34,43 +39,46 @@ class Underlying(object):
     We expect all time entries to be datetime form.
     """
 
-    def __init__(self, ticker, spot_time, spot_price, dividend=0.0):
+    def __init__(self, spot_time, spot_price, dividend=0.0):
         self.time = spot_time
         self.price = spot_price
-        self.ticker = ticker
         self.drift = None  # get these later
-        self.vol = 0.2  # TODO: this part need to be changed
-        self.div = dividend
+        self.vol = lambda asset, t: 0.2
+        self.div = lambda asset: dividend
 
 
 class Option(object):
 
-    def __init__(self, ticker, expiry_date):
-        self.ticker = ticker
+    def __init__(self, expiry_date, otype):
+        self.otype = otype
         self.expiry = expiry_date
 
     def _attach_asset(self, strike_price, *underlyings):
         self.strike = strike_price
         self.int_rate = int_rate
-        # We will fetch current 3-month Treasury rate from the web
         self.spot_price = []
         self.currency = []
         self._time = []
         self._vol = []  # TODO: This need to be modified when get data
         self._drift = []
-        self.div = 0  # TODO: add dividend structure later
         for underlying in underlyings:
             self.spot_price.append(underlying.price)
             self._time.append(underlying.time)
             self._vol.append(underlying.vol)
             self._drift.append(underlying.drift)
+            self.div = underlying.div
         if len(self._time) == 1:
-            self.time_to_maturity = self.expiry - self._time[0]
+            self.time_to_maturity = (self.expiry - self._time[0]).days / 365
         else:
-            raise ValueError("Underlyings have different spot times")
+            raise ValueError('Undelyings have different spot times')
 
-    def _payoff_fct(self, underlying):
-        pass
+    def payoff(self, price):
+        if self.otype == 'call':
+            return np.clip(price - self.strike, 0, None).astype(float)
+        elif self.otype == 'put':
+            return np.clip(self.strike - price, 0, None).astype(float)
+        else:
+            raise ValueError('Incorrect option type')
 
 
 class EurOption(Option):
@@ -79,45 +87,45 @@ class EurOption(Option):
     AmeOption can be seen as EurOptio when dealing with pricing.
     """
 
-    def __init__(self, ticker, expiry):
-        super().__init__(ticker, expiry)
-
-    def gen_pde_coeff(self):
-        try:
-            end_time = self.time_to_maturity.days / 365  # use start = 0
-        except ValueError:
-            raise ("Underlying not attached")
-
-        @np.vectorize
-        def coef2(asset, t):
-            return (sum(self._vol) * asset) ** 2 / 2
-
-        @np.vectorize
-        def coef1(asset, t):
-            return (int_rate(t) - self.div) * asset
-
-        @np.vectorize
-        def coef0(asset, t):
-            return -int_rate(t)
-        return end_time, [coef2, coef1, coef0]
-
-    def payoff(self, price, optype='call'):
-        if optype == 'call':
-            return np.clip(price - self.strike, 0, None)
-        elif optype == 'put':
-            return np.max(self.strike - price, 0, None)
-        else:
-            raise ValueError('GG!')
+    def __init__(self, otype, expiry_date):
+        super().__init__(otype, expiry_date)
 
 
 class AmeOption(Option):
 
-    def __init__(self, ticker, expiry):
-        super().__init__(ticker, expiry)
+    def __init__(self, otype, expiry_date):
+        super().__init__(otype, expiry_date)
 
 
-# # %%
-# a = EurOption("A", datetime(2011, 1, 1))
-# b = Underlying("b", datetime(2010, 1, 1), 100)
-# Option._attach_asset(a, 100, b)
-# a.payoff(110)
+class BarOption(EurOption, AmeOption):  # Barrier options
+    """
+    Currently this class only consider call/put options with knock-out barriers.
+    Further knock-in features will be built up in a later phase.
+    """
+
+    def __init__(self, otype, expiry, strike_price=10, barrier=[0, None], rebate=5):
+        super().__init__(otype, expiry)
+        self.rebate = rebate
+        self.barrier = barrier
+
+    @property
+    def barrier(self):
+        return self._barrier
+
+    @barrier.setter
+    def barrier(self, val):
+        try:
+            val = np.broadcast_to(np.asarray(val, dtype=float), (2,))
+            self._barrier = np.where(
+                [self.strike < val[0], self.strike > val[1]], [0, np.inf], val)
+        except AttributeError:
+            self._barrier = val
+        except:
+            raise ValueError("Wrong barrier input form")
+
+    def _attach_asset(self, barrier, strike_price, *underlyings):
+        super()._attach_asset(strike_price, *underlyings)
+        self.barrier = barrier
+
+
+# %%

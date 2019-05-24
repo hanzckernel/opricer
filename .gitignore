@@ -1,7 +1,10 @@
 # my own exclusion
 
 ipynb_middle_stage/
-
+.vscode
+first-proj/
+opricer/teststaff.py
+opricer/duptest.py
 
 
 

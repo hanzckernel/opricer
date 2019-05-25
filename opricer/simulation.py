@@ -17,30 +17,38 @@ c = models.AmeOption(datetime.datetime(2011, 1, 1), 'put')
 d = models.BarOption(datetime.datetime(2011, 1, 1), 'put')
 b._attach_asset(100, a)
 c._attach_asset(100, a)
-d._attach_asset([50, np.inf], 100, a)
+d._attach_asset([30, np.inf], 100, a)
 solver = analytics.AnalyticSolver()
 solver1 = pde.EurSolver()
 solver2 = pde.AmeSolver()
-solver3 = pde.BarSolver()
-Msolver1 = mc.EurMCSolver()
-Msolver2 = mc.logMCSolver()
-# print(solver3.get_price(d))
+Msolver = mc.logMCSolver()
+solver4 = pde.BarSolver()
+solver5 = pde.BarSolver()
+Msolver2 = mc.BarMCSolver()
+# print(solver3(d)[0], solver3(d)[0])
+# new = solver3(d)[0]
+# print(new)
 # print(solver1(a).shape)
 # print(c.__dict__)
 
 # print(np.gradient(price, axis=0))
 
 
-def plot(options, solvers, with_cursor=False):
+def plot(options, solvers, Msolvers, with_cursor=False):
     fig = plt.figure(figsize=(15, 8))
     ax = plt.axes()
     price = solver(b)
-    MCprice = Msolver1(b)
+    MCprice = Msolver(b)
     ax.plot(solver.asset_samples, price, label='AnalyticSol')
-    ax.plot(Msolver1.asset_samples, MCprice, label='MC')
-    ax.plot(Msolver1.asset_samples, Msolver2(b), label='logMC')
+    # ax.plot(Msolver.asset_samples, MCprice, label='MC')
+    ax.plot(Msolver.asset_samples, MCprice, label='logMC')
+    # Some problem with plotting!!!!!
+    # ax.plot(solver.asset_samples, new, label='normal')
     for opt, sol in zip(options, solvers):
         ax.plot(solver.asset_samples, sol(opt)[0], label=type(
+            sol).__name__ + type(opt).__name__)
+    for opt, sol in zip(options, Msolvers):
+        ax.plot(Msolver.asset_samples, sol(opt), label=type(
             sol).__name__ + type(opt).__name__)
     ax.legend(loc='best')
     if with_cursor:
@@ -49,7 +57,7 @@ def plot(options, solvers, with_cursor=False):
     plt.gcf()
 
 
-plot([b], [solver1])
+plot([d], [solver4], [Msolver2])
 
 
 # %%

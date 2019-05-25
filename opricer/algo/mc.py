@@ -53,14 +53,13 @@ class EurMCSolver(GenericMCSolver):
 
     def _gen_parameter(self, model):
         low_val, high_val = model.strike * self.low_val, model.strike * self.high_val
-        random_set = randn(self.time_no, self.path_no)
         self._gen_grid(model, low_val, high_val, self.asset_no, self.time_no, self.path_no,
                        0, model.time_to_maturity)
-        return random_set
 
     def _gen_path(self, model):
+        self._gen_parameter(model)
         coef_dW, coef_dt = self._gen_coeff(model)
-        random_set = self._gen_parameter(model)
+        random_set = randn(self.time_no, self.path_no)
         asset = np.tile(self.asset_samples, (self.path_no, 1))
         for idx, time in zip(range(self.time_no), self.time_samples):
             asset += coef_dt(asset, time) * self.dt + self.sqrt_dt * \
@@ -100,10 +99,60 @@ class logMCSolver(EurMCSolver):
 
     def _gen_path(self, model):
         coef_dW, coef_dt = self._gen_coeff(model)
-        random_set = self._gen_parameter(model).T
+        self._gen_parameter(model)
+        random_set = randn(self.path_no, self.time_no)
         increment = 1 + np.sum(coef_dt(self.time_samples)) * self.dt + self.sqrt_dt * \
             random_set @ coef_dW(self.time_samples)
         return np.outer(increment, self.asset_samples)
+
+
+class BarMCSolver(EurMCSolver):
+    def _gen_path(self, model):
+        self._gen_parameter(model)
+        lower_bar, higher_bar = model.barrier
+        coef_dW, coef_dt = self._gen_coeff(model)
+        random_set = randn(self.time_no, self.path_no)
+        asset = np.tile(self.asset_samples, (self.path_no, 1))
+        for idx, time in zip(range(self.time_no), self.time_samples):
+            asset += coef_dt(asset, time) * self.dt + self.sqrt_dt * \
+                coef_dW(asset, time) * \
+                random_set[idx].reshape(-1, 1)
+            asset[(asset >= higher_bar) | (
+                asset <= lower_bar)] = model.rebate
+        return asset
+
+    def get_price(self, model):
+        asset = self._gen_path(model)
+        disc = np.exp(-back_quad(model.int_rate, self.time_samples))
+        asset = model.payoff(asset)
+        # variance = np.var(asset, axis=0)
+        asset = disc[-1] * np.mean(asset, axis=0)
+        return asset
+
+
+class AmeMCSolver(EurMCSolver):
+    '''
+    Longstaff-Schwartz
+    '''
+
+    def _gen_exercise_time(self, model):
+        BiasPath_no = int(self.path_no/5)
+        coef_dW, coef_dt = self._gen_coeff(model)
+        random_set = self._gen_parameter(model)
+        disc_factor = np.exp(-back_quad(model.int_rate, self.time_no))
+
+    def _gen_path(self, model):
+        lower_bar, higher_bar = model.barrier
+        coef_dW, coef_dt = self._gen_coeff(model)
+        random_set = self._gen_parameter(model)
+        asset = np.tile(self.asset_samples, (self.path_no, 1))
+        for idx, time in zip(range(self.time_no), self.time_samples):
+            asset += coef_dt(asset, time) * self.dt + self.sqrt_dt * \
+                coef_dW(asset, time) * \
+                random_set[idx].reshape(-1, 1)
+            asset[(asset >= higher_bar) | (
+                asset <= lower_bar)] = model.rebate
+        return asset
 
 
 a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
@@ -111,6 +160,9 @@ b = models.EurOption(datetime.datetime(2011, 1, 1), 'put')
 b._attach_asset(100, a)
 solver = logMCSolver()
 solver1 = EurMCSolver()
-print(solver._gen_path(b), solver1._gen_path(b))
+# solver(b)
+
+# print(solver._gen_path(b), solver1._gen_path(b))
+# print(solver(b))
 
 # %%

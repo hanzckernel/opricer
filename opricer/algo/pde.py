@@ -23,7 +23,7 @@ class GenericPDESolver(abc.ABC):
 
 
 class EurSolver(GenericPDESolver):
-    def __init__(self, time_no=100, asset_no=50, low_val=0, high_val=5):
+    def __init__(self, time_no=100, asset_no=100, low_val=0, high_val=5):
         self.time_no = time_no
         self.asset_no = asset_no
         self.low_val = low_val
@@ -31,14 +31,14 @@ class EurSolver(GenericPDESolver):
 
     def __call__(self, model, greeks = ['price']):
         total_output = self.get_price(model)
-        self.dS = (self.high_val - self.low_val) / (self.asset_no-1)
-        self.dt = model.time_to_maturity / (self.time_no-1)
+        dS = (self.high_val - self.low_val) * model.strike / (self.asset_no-1)
+        dt = model.time_to_maturity / (self.time_no-1)
         return [{
             'price': partial(lambda arr: arr[0]),
-            'Delta': partial(lambda arr: np.gradient(arr, float(self.dS), axis = 1)[0]),
-            'Theta': partial(lambda arr: np.gradient(arr, float(self.dt), axis = 0)[0]),
-            'Gamma': partial(lambda arr: np.gradient(np.gradient(arr, self.dS,
-                            axis =1), self.dS, axis= 1)),}[greek](total_output) for greek in greeks
+            'Delta': partial(lambda arr: np.gradient(arr, float(dS), axis = 1)[0]),
+            'Theta': partial(lambda arr: np.gradient(arr, float(dt), axis = 0)[0]),
+            'Gamma': partial(lambda arr: np.gradient(np.gradient(arr, dS,
+                            axis =1), dS, axis= 1)),}[greek](total_output) for greek in greeks
         ]
 
     @staticmethod
@@ -99,6 +99,8 @@ class EurSolver(GenericPDESolver):
         matrix_left, matrix_right, lower_bdd, upper_bdd = self._prepare_matrix(
             model)
         del (self.A, self.B, self.C, self.dS)
+        self.high_val = self.high_val/model.strike
+        self.low_val = self.low_val/model.strike
         """
         Prepare 3D tensor (time-list of sparse diagonal matrix) for simulation.
         Later only expand one slice to full matrix so as to save storage.
@@ -117,6 +119,7 @@ class EurSolver(GenericPDESolver):
                 mat_left, (mat_right @ out).ravel() + extra_vec).reshape(-1, 1)
             total_output.append(out)
         total_output.reverse() 
+
         return total_output
 
 
@@ -216,6 +219,9 @@ class AmeSolver(EurSolver):
                         (out[i] - self.L[i - 2, time] * out[i-1]), begin[i])
                 total_output.append(out)
         total_output.reverse()
+        del (self.L, self.H, self.C)
+        self.low_val = self.low_val/model.strike
+        self.high_val = self.high_val/model.strike
         if beautify:
             total_output = np.array(total_output)
             total_output[:, [0, -1]] = 2 * \
@@ -253,7 +259,6 @@ class BarSolver(EurSolver):
         out = model.payoff(self.asset_samples)
         damp_layer = np.where((self.asset_samples <= lower_bar)
                               | (self.asset_samples >= higher_bar))
-        out[damp_layer] = model.rebate
         total_output = [out]
         for time in range(1, self.time_no):
             mat_left, mat_right = matrix_left[-time -
@@ -266,5 +271,7 @@ class BarSolver(EurSolver):
                                         (mat_right @ out[1:-1]).ravel() + extra_vec).reshape(-1, 1)
             out[damp_layer] = model.rebate
             total_output.append(out)
+        self.high_val = self.high_val/model.strike
+        self.low_val = self.low_val/model.strike
         total_output.reverse()
         return total_output

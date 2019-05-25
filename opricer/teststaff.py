@@ -12,7 +12,5 @@ from opricer.tools.mathtool import force_broadcast
 arr = np.arange(0, 1, 0.1).reshape(2, 5)
 arr2 = np.arange(0, 0.5, 0.1)
 
-print(arr @ arr2)
-
 
 # %%

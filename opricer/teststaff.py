@@ -10,9 +10,9 @@ from opricer.tools.mathtool import force_broadcast
 
 
 arr = np.arange(0, 1, 0.1).reshape(2, 5)
-arr2 = np.arange(0, 2, 0.1)
+arr2 = np.arange(0, 0.5, 0.1)
 
-print(2 ** 3/2)
+print(arr @ arr2)
 
 
 # %%

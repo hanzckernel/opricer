@@ -43,7 +43,7 @@ class EurMCSolver(GenericMCSolver):
     def _gen_coeff(model):
         try:
             def coef_dt(asset, t):
-                return asset * model.int_rate(t)
+                return asset * (model.int_rate(t) - model.div(asset))
 
             def coef_dW(asset, t):
                 return asset * model._vol[0](asset, t)
@@ -63,13 +63,14 @@ class EurMCSolver(GenericMCSolver):
         random_set = self._gen_parameter(model)
         asset = np.tile(self.asset_samples, (self.path_no, 1))
         for idx, time in zip(range(self.time_no), self.time_samples):
-            asset += coef_dW(asset, time) * self.dt + \
-                coef_dt(asset, time) * random_set[idx].reshape(-1, 1)
+            asset += coef_dt(asset, time) * self.dt + self.sqrt_dt * \
+                coef_dW(asset, time) * \
+                random_set[idx].reshape(-1, 1)
         return asset
 
     def get_price(self, model):
         asset = self._gen_path(model)
-        disc = np.exp(back_quad(model.int_rate, self.time_samples))
+        disc = np.exp(-back_quad(model.int_rate, self.time_samples))
         asset = model.payoff(asset)
         # variance = np.var(asset, axis=0)
         asset = disc[-1] * np.mean(asset, axis=0)
@@ -77,44 +78,39 @@ class EurMCSolver(GenericMCSolver):
 
 
 class logMCSolver(EurMCSolver):
+    '''
+    For fast calibration if the coeff are asset-independent. More inaccurate ATM.
+    '''
 
     @staticmethod
     def _gen_coeff(model):
 
         try:
-            def coef_dt(asset, t):
-                return model.int_rate(t) - model._vol[0](asset, t) ** 2 / 2
+            strike = model.strike
+            @force_broadcast
+            def coef_dt(t):
+                return model.int_rate(t) - model.div(strike) - model._vol[0](strike, t) ** 2 / 2
 
-            def coef_dW(asset, t):
-                return model._vol[0](asset, t)
+            @force_broadcast
+            def coef_dW(t):
+                return model._vol[0](strike, t)
             return coef_dW, coef_dt
         except AttributeError:
             raise('Underlying not attached')
 
     def _gen_path(self, model):
         coef_dW, coef_dt = self._gen_coeff(model)
-        random_set = self._gen_parameter(model)
-        asset = np.tile(self.asset_samples, (self.path_no, 1))
-        # TODO: big problem , uneven grid!!!!!
-        log_asset = np.log(self.asset_samples)
-        for idx, time in zip(range(self.time_no), self.time_samples):
-            log_asset = coef_dW(asset, time) * self.dt + \
-                coef_dt(asset, time) * random_set[idx].reshape(-1, 1)
-            asset = np.exp(log_asset) * asset
-        return asset
-
-    def get_price(self, model):
-        asset = self._gen_path(model)
-        disc = np.exp(back_quad(model.int_rate, self.time_samples))
-        asset = model.payoff(asset)
-        asset = disc[-1] * np.mean(asset, axis=0)
-        return asset
+        random_set = self._gen_parameter(model).T
+        increment = 1 + np.sum(coef_dt(self.time_samples)) * self.dt + self.sqrt_dt * \
+            random_set @ coef_dW(self.time_samples)
+        return np.outer(increment, self.asset_samples)
 
 
 a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
 b = models.EurOption(datetime.datetime(2011, 1, 1), 'put')
 b._attach_asset(100, a)
 solver = logMCSolver()
-print(solver(b), b.strike)
+solver1 = EurMCSolver()
+print(solver._gen_path(b), solver1._gen_path(b))
 
 # %%

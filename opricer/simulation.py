@@ -49,7 +49,7 @@ def plot(options, solvers, with_cursor=False):
     plt.gcf()
 
 
-plot([], [])
+plot([b], [solver1])
 
 
 # %%

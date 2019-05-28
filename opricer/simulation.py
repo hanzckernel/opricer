@@ -25,13 +25,6 @@ Msolver = mc.logMCSolver()
 solver4 = pde.BarSolver()
 solver5 = pde.BarSolver()
 Msolver2 = mc.BarMCSolver()
-# print(solver3(d)[0], solver3(d)[0])
-# new = solver3(d)[0]
-# print(new)
-# print(solver1(a).shape)
-# print(c.__dict__)
-
-# print(np.gradient(price, axis=0))
 
 
 def plot(options, solvers, Msolvers, with_cursor=False):
@@ -57,7 +50,7 @@ def plot(options, solvers, Msolvers, with_cursor=False):
     plt.gcf()
 
 
-plot([d], [solver4], [Msolver2])
+plot([], [], [])
 
 
 # %%

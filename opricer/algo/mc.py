@@ -7,6 +7,10 @@ import abc
 from numpy.random import randn
 from math import sqrt
 from opricer.tools.mathtool import force_broadcast, back_quad
+from scipy.integrate import quad
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
 
 
 class GenericMCSolver(abc.ABC):
@@ -15,12 +19,12 @@ class GenericMCSolver(abc.ABC):
         pass
 
     @classmethod
-    def _gen_grid(cls, model, low_val, high_val, asset_no, time_no, path_no,
-                  start_time, end_time, include_all=False):
-        cls.dt = (end_time - start_time)/time_no
-        cls.dS = (high_val - low_val)/asset_no
-        cls.time_samples = np.arange(start_time, end_time, cls.dt)
-        cls.asset_samples = np.arange(low_val, high_val, cls.dS)
+    def _gen_grid(cls, model, low_val, high_val, asset_no, time_no,
+                  start_time, end_time):
+        cls.dt = (end_time - start_time)/(time_no-1)
+        cls.dS = (high_val - low_val)/(asset_no-1)
+        cls.time_samples = np.linspace(start_time, end_time, time_no)
+        cls.asset_samples = np.linspace(low_val, high_val, asset_no)
         cls.sqrt_dt = sqrt(cls.dt)
 
     @abc.abstractmethod
@@ -29,7 +33,7 @@ class GenericMCSolver(abc.ABC):
 
 
 class EurMCSolver(GenericMCSolver):
-    def __init__(self, path_no=500, asset_no=200, time_no=100, high_val=5, low_val=0):
+    def __init__(self, path_no=3000, asset_no=10, time_no=150, high_val=2, low_val=0):
         self.asset_no = asset_no
         self.time_no = time_no
         self.path_no = path_no
@@ -51,13 +55,17 @@ class EurMCSolver(GenericMCSolver):
         except AttributeError:
             raise('Underlying not attached')
 
-    def _gen_parameter(self, model):
+    def _gen_parameter(self, model, asset_no, time_no):
+        """
+        We use asset_no and time_no as parameters so that we can make it sparser
+        when running LS.
+        """
         low_val, high_val = model.strike * self.low_val, model.strike * self.high_val
-        self._gen_grid(model, low_val, high_val, self.asset_no, self.time_no, self.path_no,
+        self._gen_grid(model, low_val, high_val, asset_no, time_no,
                        0, model.time_to_maturity)
 
     def _gen_path(self, model):
-        self._gen_parameter(model)
+        self._gen_parameter(model, self.asset_no, self.time_no)
         coef_dW, coef_dt = self._gen_coeff(model)
         random_set = randn(self.time_no, self.path_no)
         asset = np.tile(self.asset_samples, (self.path_no, 1))
@@ -100,6 +108,7 @@ class logMCSolver(EurMCSolver):
     def _gen_path(self, model):
         coef_dW, coef_dt = self._gen_coeff(model)
         self._gen_parameter(model)
+        # Note the difference in order for this special one
         random_set = randn(self.path_no, self.time_no)
         increment = 1 + np.sum(coef_dt(self.time_samples)) * self.dt + self.sqrt_dt * \
             random_set @ coef_dW(self.time_samples)
@@ -107,6 +116,7 @@ class logMCSolver(EurMCSolver):
 
 
 class BarMCSolver(EurMCSolver):
+
     def _gen_path(self, model):
         self._gen_parameter(model)
         lower_bar, higher_bar = model.barrier
@@ -117,8 +127,6 @@ class BarMCSolver(EurMCSolver):
             asset += coef_dt(asset, time) * self.dt + self.sqrt_dt * \
                 coef_dW(asset, time) * \
                 random_set[idx].reshape(-1, 1)
-            asset[(asset >= higher_bar) | (
-                asset <= lower_bar)] = model.rebate
         return asset
 
     def get_price(self, model):
@@ -136,33 +144,76 @@ class AmeMCSolver(EurMCSolver):
     '''
 
     def _gen_exercise_time(self, model):
-        BiasPath_no = int(self.path_no/5)
+        """
+        We just use one price to simulate, as this is more difficult.
+        """
+        self.BiasPath_no = int(self.path_no/5)
+        self.BiasTime_no = int(self.time_no/3)
         coef_dW, coef_dt = self._gen_coeff(model)
-        random_set = self._gen_parameter(model)
-        disc_factor = np.exp(-back_quad(model.int_rate, self.time_no))
+        # Note here time_samples are sparse
+        self._gen_parameter(model, asset_no=self.asset_no,
+                            time_no=self.BiasTime_no)
+        random_set = randn(self.time_no-1, self.BiasPath_no)
+        cum_intrate = back_quad(model.int_rate, self.time_samples)
+        disc_factor = np.exp(cum_intrate)
+        asset = np.tile(self.asset_samples, (self.BiasPath_no, 1))
+        lst = [asset.copy()]
+        # end_time = np.full(
+        #     (self.BiasPath_no, self.asset_no), model.time_to_maturity)
+        poly = PolynomialFeatures()
+        reg_model = LinearRegression()
+        for idx, time in zip(range(self.BiasTime_no-1), self.time_samples[1:]):
+            asset += (coef_dt(asset, time) * self.dt + self.sqrt_dt *
+                      coef_dW(asset, time) * random_set[idx].reshape(-1, 1))
+            lst.append(asset.copy())
+        '''lst.shape = (self.BTime_no, self.BPath_no, self.asset_no)'''
+        lst = np.array(lst)[..., int(self.asset_no/1.75)]
+        lst_payoff = model.payoff(lst)
+        stopping_idx = -np.ones(self.BiasPath_no, dtype=int)
+        stopping_val = [lst_payoff[-1], stopping_idx]
+        for time_idx in range(-2, -self.BiasTime_no - 1, -1):
+            asset_left, asset_right = lst[time_idx], stopping_val[0]
+            non_zero_idx = np.nonzero(lst_payoff[time_idx])
+            X_axis = asset_left[non_zero_idx]
+            Y_axis = (np.exp(cum_intrate[- stopping_val[1] - 1] - cum_intrate[-time_idx - 1]) *
+                      stopping_val[0])[non_zero_idx]
+            if X_axis.size != 0:
+                X_poly, total_poly = [np.array(
+                    [x, x ** 2, x ** 3]).T for x in [X_axis, asset_left]]
+                '''total_poly.shape = (3, self.BPath_no, self.asset_no)'''
+                reg_model.fit(X_poly, Y_axis)
+                Y_pred = total_poly @ reg_model.coef_ + reg_model.intercept_
+                Y_pred = np.clip(Y_pred, 0, None)
+                X_payoff = lst_payoff[time_idx]
+                # print(X_payoff > Y_pred)
+                exercise_now = np.argwhere(X_payoff > Y_pred)
+                # print(exercise_now)
+                # hold_on = np.argwhere(X_payoff < Y_pred)
+                stopping_val[1][exercise_now] = time_idx
+                stopping_val[0][exercise_now] = X_payoff[exercise_now]
+                # print(stopping_val)
+            else:
+                break
+        fair_price = np.dot(stopping_val[0], np.exp(
+            cum_intrate[-stopping_val[1] - 1])-cum_intrate[-1])/self.BiasPath_no
+        # first_nonzero = np.argwhere(stopping_val[0] == 0)[1]
+        return fair_price, stopping_val
 
     def _gen_path(self, model):
         lower_bar, higher_bar = model.barrier
         coef_dW, coef_dt = self._gen_coeff(model)
         random_set = self._gen_parameter(model)
-        asset = np.tile(self.asset_samples, (self.path_no, 1))
-        for idx, time in zip(range(self.time_no), self.time_samples):
-            asset += coef_dt(asset, time) * self.dt + self.sqrt_dt * \
-                coef_dW(asset, time) * \
-                random_set[idx].reshape(-1, 1)
-            asset[(asset >= higher_bar) | (
-                asset <= lower_bar)] = model.rebate
-        return asset
+
+    def get_price(self, model):
+        pass
 
 
 a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
-b = models.EurOption(datetime.datetime(2011, 1, 1), 'put')
-b._attach_asset(100, a)
-solver = logMCSolver()
-solver1 = EurMCSolver()
-# solver(b)
+c = models.AmeOption(datetime.datetime(2011, 1, 1), 'put')
+c._attach_asset(100, a)
+Amesolver = AmeMCSolver()
+print(Amesolver._gen_exercise_time(c),
+      AmeMCSolver.asset_samples[int(Amesolver.asset_no/1.75)])
 
-# print(solver._gen_path(b), solver1._gen_path(b))
-# print(solver(b))
 
 # %%

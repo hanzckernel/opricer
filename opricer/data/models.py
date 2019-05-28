@@ -41,7 +41,7 @@ class Underlying(object):
 
     def __init__(self, spot_time, spot_price, dividend=0):
         self.time = spot_time
-        self.price = spot_price
+        self.price = float(spot_price)
         self.drift = None  # get these later
         self.vol = lambda asset, t: 0.2
         self.div = lambda asset: dividend
@@ -54,7 +54,7 @@ class Option(object):
         self.expiry = expiry_date
 
     def _attach_asset(self, strike_price, *underlyings):
-        self.strike = strike_price
+        self.strike = float(strike_price)
         self.int_rate = int_rate
         self.spot_price = []
         self.currency = []

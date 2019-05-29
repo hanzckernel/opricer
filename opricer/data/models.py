@@ -39,9 +39,9 @@ class Underlying(object):
     We expect all time entries to be datetime form.
     """
 
-    def __init__(self, spot_time, spot_price, dividend=0.0):
+    def __init__(self, spot_time, spot_price, dividend=0.2):
         self.time = spot_time
-        self.price = spot_price
+        self.price = float(spot_price)
         self.drift = None  # get these later
         self.vol = lambda asset, t: 0.2
         self.div = lambda asset: dividend
@@ -54,7 +54,7 @@ class Option(object):
         self.expiry = expiry_date
 
     def _attach_asset(self, strike_price, *underlyings):
-        self.strike = strike_price
+        self.strike = float(strike_price)
         self.int_rate = int_rate
         self.spot_price = []
         self.currency = []
@@ -126,6 +126,16 @@ class BarOption(EurOption, AmeOption):  # Barrier options
     def _attach_asset(self, barrier, strike_price, *underlyings):
         super()._attach_asset(strike_price, *underlyings)
         self.barrier = barrier
+
+    def payoff(self, price):
+        lower_bar, higher_bar = self.barrier
+        if np.isscalar(price):
+            return self.rebate if price <= lower_bar or price >= higher_bar else super().payoff(price)
+        else:
+            final = super().payoff(price)
+            damp_layer = np.where((price <= lower_bar) | (price >= higher_bar))
+            final[damp_layer] = self.rebate
+        return final
 
 
 # %%

@@ -9,22 +9,29 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Cursor
 from scipy.sparse import diags
 from scipy.linalg import lu_solve, lu_factor
+# from opricer.teststaff import simulate
 
-
+np.random.seed(123)
 a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
-b = models.EurOption(datetime.datetime(2011, 1, 1), 'put')
-c = models.AmeOption(datetime.datetime(2011, 1, 1), 'put')
-d = models.BarOption(datetime.datetime(2011, 1, 1), 'put')
+b = models.EurOption(datetime.datetime(2011, 1, 1), 'call')
+c = models.AmeOption(datetime.datetime(2011, 1, 1), 'call')
+d = models.BarOption(datetime.datetime(2011, 1, 1), 'call')
 b._attach_asset(100, a)
 c._attach_asset(100, a)
 d._attach_asset([30, np.inf], 100, a)
-solver = analytics.AnalyticSolver()
-solver1 = pde.EurSolver()
-solver2 = pde.AmeSolver()
-Msolver = mc.logMCSolver()
+solver = analytics.AnalyticSolver(high_val=2, low_val=0)
+# solver1 = pde.EurSolver()
+solver2 = pde.AmeSolver(high_val=2, low_val=0)
+AMeprice = solver2(c)
+Msolver = mc.EurMCSolver(path_no=60000, asset_no=10,
+                         time_no=100, high_val=2, low_val=0)
 solver4 = pde.BarSolver()
 solver5 = pde.BarSolver()
+Msolver1 = mc.logMCSolver(path_no=60000, asset_no=10,
+                          time_no=100, high_val=2, low_val=0)
 Msolver2 = mc.BarMCSolver()
+Msolver3 = mc.AmeMCSolver(path_no=600, asset_no=10,
+                          time_no=100, high_val=2, low_val=0)
 
 
 def plot(options, solvers, Msolvers, with_cursor=False):
@@ -33,15 +40,13 @@ def plot(options, solvers, Msolvers, with_cursor=False):
     price = solver(b)
     MCprice = Msolver(b)
     ax.plot(solver.asset_samples, price, label='AnalyticSol')
-    # ax.plot(Msolver.asset_samples, MCprice, label='MC')
-    ax.plot(Msolver.asset_samples, MCprice, label='logMC')
-    # Some problem with plotting!!!!!
-    # ax.plot(solver.asset_samples, new, label='normal')
+    ax.plot(Msolver.asset_samples, MCprice, label='MC')
+    ax.plot(solver.asset_samples, AMeprice[0], label='AMe')
     for opt, sol in zip(options, solvers):
         ax.plot(solver.asset_samples, sol(opt)[0], label=type(
             sol).__name__ + type(opt).__name__)
     for opt, sol in zip(options, Msolvers):
-        ax.plot(Msolver.asset_samples, sol(opt), label=type(
+        ax.plot(Msolver1.asset_samples, sol(opt), label=type(
             sol).__name__ + type(opt).__name__)
     ax.legend(loc='best')
     if with_cursor:
@@ -50,8 +55,17 @@ def plot(options, solvers, Msolvers, with_cursor=False):
     plt.gcf()
 
 
-plot([], [], [])
+# solver2(c)
+# print(solver2.__dict__)
+# solver2(c)
+# print(c.__dict__)
+# plot([], [], [])
+# plot([b], [solver2], [Msolver])
+plot([c], [solver2], [Msolver3])
 
+# price = solver(b)
+# MCprice = Msolver1(b)
+# print(MCprice/price.flatten())
 
 # %%
 # L = diags([solver3.L[50], 1], [-1, 0], shape=(48, 48)).A

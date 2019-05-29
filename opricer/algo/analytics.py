@@ -20,7 +20,7 @@ class AnalyticSolver(pde.EurSolver):
         self._gen_grid(self.low_val, self.high_val, 0,
                        model.time_to_maturity, self.time_no, self.asset_no)
         K, T = model.strike, model.time_to_maturity
-        r, D, vol = model.int_rate(0), model.div(0), model._vol[0](0, 0)
+        r, D, vol = model.int_rate(T), model.div(K), model._vol[0](K, T)
         moneyness = np.log(self.asset_samples / K)
         d1 = (moneyness + (r-D + vol**2/2)*T)/(vol * np.sqrt(T))
         d2 = d1 - vol * np.sqrt(T)

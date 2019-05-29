@@ -219,7 +219,7 @@ class AmeSolver(EurSolver):
                         (out[i] - self.L[i - 2, time] * out[i-1]), begin[i])
                 total_output.append(out)
         total_output.reverse()
-        del (self.L, self.H, self.C)
+        del (self.L, self.H, self.C, self.dS)
         self.low_val = self.low_val/model.strike
         self.high_val = self.high_val/model.strike
         if beautify:
@@ -275,3 +275,15 @@ class BarSolver(EurSolver):
         self.low_val = self.low_val/model.strike
         total_output.reverse()
         return total_output
+
+
+# a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
+# b = models.EurOption(datetime.datetime(2011, 1, 1), 'call')
+# c = models.AmeOption(datetime.datetime(2011, 1, 1), 'call')
+# b._attach_asset(100, a)
+# c._attach_asset(100, a)
+# solver1 = EurSolver()
+# solver2 = AmeSolver()
+
+# print(solver1(b)[0].flatten())
+# print(solver2(c)[0].flatten())

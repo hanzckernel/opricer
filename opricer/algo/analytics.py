@@ -15,12 +15,10 @@ class AnalyticSolver(pde.EurSolver):
 
     def get_price(self, model):
         spot_price = np.array(model.spot_price)
-        self.low_val *= spot_price
-        self.high_val *= spot_price
-        self._gen_grid(self.low_val, self.high_val, 0,
+        self._gen_grid(self.low_val * spot_price, self.high_val * spot_price, 0,
                        model.time_to_maturity, self.time_no, self.asset_no)
         K, T = model.strike, model.time_to_maturity
-        r, D, vol = model.int_rate(T), model.div(K), model._vol[0](K, T)
+        r, D, vol = model.int_rate(T), model.div[0](K), model._vol[0](K, T)
         moneyness = np.log(self.asset_samples / K)
         d1 = (moneyness + (r-D + vol**2/2)*T)/(vol * np.sqrt(T))
         d2 = d1 - vol * np.sqrt(T)

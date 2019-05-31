@@ -42,7 +42,6 @@ class Underlying(object):
     def __init__(self, spot_time, spot_price, dividend=0.2):
         self.time = spot_time
         self.price = float(spot_price)
-        self.drift = None  # get these later
         self.vol = lambda asset, t: 0.2
         self.div = lambda asset: dividend
 
@@ -60,13 +59,12 @@ class Option(object):
         self.currency = []
         self._time = []
         self._vol = []  # TODO: This need to be modified when get data
-        self._drift = []
+        self.div = []
         for underlying in underlyings:
             self.spot_price.append(underlying.price)
             self._time.append(underlying.time)
             self._vol.append(underlying.vol)
-            self._drift.append(underlying.drift)
-            self.div = underlying.div
+            self.div.append(underlying.div)
         if len(self._time) == 1:
             self.time_to_maturity = (self.expiry - self._time[0]).days / 365
         else:

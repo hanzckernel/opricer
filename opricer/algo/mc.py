@@ -32,7 +32,7 @@ class GenericMCSolver(abc.ABC):
 
 
 class EurMCSolver(GenericMCSolver):
-    def __init__(self, path_no=1000, asset_no=5, time_no=101, high_val=2, low_val=0):
+    def __init__(self, path_no=1000, asset_no=500, time_no=101, high_val=5, low_val=0):
         self.asset_no = asset_no
         self.time_no = time_no
         self.path_no = path_no
@@ -46,7 +46,7 @@ class EurMCSolver(GenericMCSolver):
     def _gen_coeff(model):
         try:
             def coef_dt(asset, t):
-                return asset * (model.int_rate(t) - model.div(asset))
+                return asset * (model.int_rate(t) - model.div[0](asset))
 
             def coef_dW(asset, t):
                 return asset * model._vol[0](asset, t)
@@ -95,7 +95,7 @@ class logMCSolver(EurMCSolver):
             strike = model.strike
             @force_broadcast
             def coef_dt(t):
-                return model.int_rate(t) - model.div(strike) - model._vol[0](strike, t) ** 2 / 2
+                return model.int_rate(t) - model.div[0](strike) - model._vol[0](strike, t) ** 2 / 2
 
             @force_broadcast
             def coef_dW(t):
@@ -124,16 +124,10 @@ class BarMCSolver(EurMCSolver):
         asset = np.tile(self.asset_samples.reshape(-1, 1), (1, self.path_no))
         for idx, time in zip(range(self.time_no), self.time_samples):
             asset = asset + coef_dt(asset, time) * self.dt + self.sqrt_dt * \
-                coef_dW(asset, time) * random_set[idx]
-        return asset
-
-    def get_price(self, model):
-        asset = self._gen_path(model)
-        # disc = np.exp(-back_quad(model.int_rate, self.time_samples))
-        asset = model.payoff(asset)
-        # variance = np.var(asset, axis=0)
-        asset = quad(model.int_rate, 0, model.time_to_maturity) * \
-            np.mean(asset, axis=1)
+                coef_dW(asset, time) * random_set[:, idx]
+            damp_layer = np.where((asset <= lower_bar) | (asset >= higher_bar))
+            asset[damp_layer] = np.nan
+        asset[np.isnan(asset)] = model.rebate
         return asset
 
 

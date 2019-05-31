@@ -15,23 +15,19 @@ np.random.seed(123)
 a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
 b = models.EurOption(datetime.datetime(2011, 1, 1), 'call')
 c = models.AmeOption(datetime.datetime(2011, 1, 1), 'call')
-d = models.BarOption(datetime.datetime(2011, 1, 1), 'call')
+d = models.BarOption(datetime.datetime(2011, 1, 1), 'put')
 b._attach_asset(100, a)
 c._attach_asset(100, a)
 d._attach_asset([30, np.inf], 100, a)
 solver = analytics.AnalyticSolver(high_val=2, low_val=0)
+price = solver(b)
 # solver1 = pde.EurSolver()
 solver2 = pde.AmeSolver(high_val=2, low_val=0)
 AMeprice = solver2(c)
 Msolver = mc.EurMCSolver(path_no=60000, asset_no=10,
                          time_no=100, high_val=2, low_val=0)
-solver4 = pde.BarSolver()
-solver5 = pde.BarSolver()
-Msolver1 = mc.logMCSolver(path_no=60000, asset_no=10,
-                          time_no=100, high_val=2, low_val=0)
-Msolver2 = mc.BarMCSolver()
-Msolver3 = mc.AmeMCSolver(path_no=600, asset_no=10,
-                          time_no=100, high_val=2, low_val=0)
+solver4 = pde.BarSolver(high_val=2, low_val=0, asset_no=solver.asset_no)
+Msolver2 = mc.BarMCSolver(high_val=2, low_val=0, asset_no=solver.asset_no)
 
 
 def plot(options, solvers, Msolvers, with_cursor=False):
@@ -46,7 +42,7 @@ def plot(options, solvers, Msolvers, with_cursor=False):
         ax.plot(solver.asset_samples, sol(opt)[0], label=type(
             sol).__name__ + type(opt).__name__)
     for opt, sol in zip(options, Msolvers):
-        ax.plot(Msolver1.asset_samples, sol(opt), label=type(
+        ax.plot(solver.asset_samples, sol(opt), label=type(
             sol).__name__ + type(opt).__name__)
     ax.legend(loc='best')
     if with_cursor:
@@ -61,7 +57,7 @@ def plot(options, solvers, Msolvers, with_cursor=False):
 # print(c.__dict__)
 # plot([], [], [])
 # plot([b], [solver2], [Msolver])
-plot([c], [solver2], [Msolver3])
+plot([d], [solver4], [Msolver2])
 
 # price = solver(b)
 # MCprice = Msolver1(b)

@@ -31,7 +31,7 @@ class EurSolver(GenericPDESolver):
 
     def __call__(self, model, greeks = ['price']):
         total_output = self.get_price(model)
-        dS = (self.high_val - self.low_val) * model.strike / (self.asset_no-1)
+        dS = (self.high_val - self.low_val) * model.spot_price / (self.asset_no-1)
         dt = model.time_to_maturity / (self.time_no-1)
         return [{
             'price': partial(lambda arr: arr[0]),
@@ -50,7 +50,7 @@ class EurSolver(GenericPDESolver):
 
             @force_broadcast
             def coef1(asset, t):
-                return (model.int_rate(t) - model.div(t)) * asset
+                return (model.int_rate(t) - model.div[0](t)) * asset
 
             @force_broadcast
             def coef0(asset, t):
@@ -99,8 +99,8 @@ class EurSolver(GenericPDESolver):
         matrix_left, matrix_right, lower_bdd, upper_bdd = self._prepare_matrix(
             model)
         del (self.A, self.B, self.C, self.dS)
-        self.high_val = self.high_val/model.strike
-        self.low_val = self.low_val/model.strike
+        self.high_val = self.high_val/model.spot_price
+        self.low_val = self.low_val/model.spot_price
         """
         Prepare 3D tensor (time-list of sparse diagonal matrix) for simulation.
         Later only expand one slice to full matrix so as to save storage.
@@ -164,13 +164,13 @@ class AmeSolver(EurSolver):
         # to_endtime = model.time_to_maturity - self.time_samples
         if model.otype == 'call':
             upper_bdd = np.maximum(self.high_val - model.strike,
-                                   self.high_val * np.exp(-back_quad(model.div, self.time_samples)) -
+                                   self.high_val * np.exp(-back_quad(model.div[0], self.time_samples)) -
                                    model.strike * np.exp(-back_quad(model.int_rate, self.time_samples)))
             lower_bdd = 0
         elif model.otype == 'put':
             lower_bdd = np.minimum(model.strike - self.low_val,
                                    -self.low_val * np.exp(-back_quad(model.int_rate, self.time_samples)) +
-                                   model.strike * np.exp(-back_quad(model.div, self.time_samples)))
+                                   model.strike * np.exp(-back_quad(model.div[0], self.time_samples)))
             upper_bdd = 0
         else:
             raise ValueError('Unknown option type')
@@ -220,8 +220,8 @@ class AmeSolver(EurSolver):
                 total_output.append(out)
         total_output.reverse()
         del (self.L, self.H, self.C, self.dS)
-        self.low_val = self.low_val/model.strike
-        self.high_val = self.high_val/model.strike
+        self.low_val = self.low_val/model.spot_price
+        self.high_val = self.high_val/model.spot_price
         if beautify:
             total_output = np.array(total_output)
             total_output[:, [0, -1]] = 2 * \
@@ -238,12 +238,12 @@ class BarSolver(EurSolver):
         to_endtime = model.time_to_maturity - self.time_samples
         if model.otype == 'call':
             upper_bdd = np.minimum(upper_bdd,
-                                   self.high_val * np.exp(-back_quad(model.div, self.time_samples)) -
+                                   self.high_val * np.exp(-back_quad(model.div[0], self.time_samples)) -
                                    model.strike * np.exp(-back_quad(model.int_rate, self.time_samples)))
         elif model.otype == 'put':
             lower_bdd = np.minimum(lower_bdd,
                                    -self.low_val * np.exp(-back_quad(model.int_rate, self.time_samples)) +
-                                   model.strike * np.exp(-back_quad(model.div, self.time_samples)))
+                                   model.strike * np.exp(-back_quad(model.div[0], self.time_samples)))
         else:
             raise ValueError('Unknown option type')
         return matrix_left, matrix_right, lower_bdd, upper_bdd
@@ -271,8 +271,8 @@ class BarSolver(EurSolver):
                                         (mat_right @ out[1:-1]).ravel() + extra_vec).reshape(-1, 1)
             out[damp_layer] = model.rebate
             total_output.append(out)
-        self.high_val = self.high_val/model.strike
-        self.low_val = self.low_val/model.strike
+        self.high_val = self.high_val/model.spot_price
+        self.low_val = self.low_val/model.spot_price
         total_output.reverse()
         return total_output
 

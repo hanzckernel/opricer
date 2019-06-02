@@ -39,7 +39,7 @@ class Underlying(object):
     We expect all time entries to be datetime form.
     """
 
-    def __init__(self, spot_time, spot_price, dividend=0.2):
+    def __init__(self, spot_time, spot_price, dividend=0.1):
         self.time = spot_time
         self.price = float(spot_price)
         self.vol = lambda asset, t: 0.2
@@ -65,7 +65,8 @@ class Option(object):
             self._time.append(underlying.time)
             self._vol.append(underlying.vol)
             self.div.append(underlying.div)
-        if len(self._time) == 1:
+        self.spot_price = np.array(self.spot_price)
+        if len(set(self._time)) == 1:
             self.time_to_maturity = (self.expiry - self._time[0]).days / 365
         else:
             raise ValueError('Undelyings have different spot times')
@@ -82,7 +83,7 @@ class Option(object):
 class EurOption(Option):
     """
     we write this subclass just to make the structure clearer.
-    AmeOption can be seen as EurOptio when dealing with pricing.
+    AmeOption can be seen as EurOption when dealing with pricing.
     """
 
     def __init__(self, otype, expiry_date):
@@ -136,4 +137,26 @@ class BarOption(EurOption, AmeOption):  # Barrier options
         return final
 
 
-# %%
+class BasketOption(Option):
+
+    def _attach_asset(self, strike_price, *underlyings):
+        super()._attach_asset(strike_price, *underlyings)
+        self.spot_price, self._vol, self.div = [
+            np.array(attr) for attr in [self.spot_price, self._vol, self.div]]
+        self.AssetCount = len(self._vol)
+        self.corr_mat = np.identity(self.AssetCount)
+        self.weight = np.full(self.AssetCount, 1/self.AssetCount)
+
+    def set_corr(self, corr):
+        self.corr_mat = corr
+
+    def set_weight(self, weight_lst):
+        if len(weight_lst) == self.AssetCount:
+            self.weight = weight_lst
+        else:
+            raise ValueError(
+                'Number of weight does not match number of asset')
+
+    def payoff(self, price):
+        sum_price = (price * self.weight).sum(axis=-1)
+        return super().payoff(sum_price)

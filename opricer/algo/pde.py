@@ -271,8 +271,8 @@ class BarSolver(EurSolver):
                                         (mat_right @ out[1:-1]).ravel() + extra_vec).reshape(-1, 1)
             out[damp_layer] = model.rebate
             total_output.append(out)
-        self.high_val = self.high_val/model.spot_price
-        self.low_val = self.low_val/model.spot_price
+        self.high_val = self.high_val/ model.spot_price
+        self.low_val = self.low_val/ model.spot_price
         total_output.reverse()
         return total_output
 

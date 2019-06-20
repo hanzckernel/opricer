@@ -138,3 +138,139 @@ def update_news():
         data = {"title": ["news api not retrievable"], "url": [url]}
         df = pd.DataFrame(data=data, columns=["title", "url"])
     return generate_news_table(df)
+
+
+layout = [
+
+    # top controls
+    html.Div(
+        [
+            html.Div(
+                dcc.Dropdown(
+                    id="converted_leads_dropdown",
+                    options=[
+                        {"label": "By day", "value": "D"},
+                        {"label": "By week", "value": "W-MON"},
+                        {"label": "By month", "value": "M"},
+                    ],
+                    value="D",
+                    clearable=False,
+                ),
+                className="two columns",
+            ),
+            html.Div(
+                dcc.Dropdown(
+                    id="lead_source_dropdown",
+                    options=[
+                        {"label": "All status", "value": "all"},
+                        {"label": "Open leads", "value": "open"},
+                        {"label": "Converted leads", "value": "converted"},
+                        {"label": "Lost leads", "value": "lost"},
+                    ],
+                    value="all",
+                    clearable=False,
+                ),
+                className="two columns",
+            ),
+
+            # add button
+            html.Div(
+                html.Span(
+                    "Add new",
+                    id="new_option",
+                    n_clicks=0,
+                    className="button button--primary",
+                    style={
+                        "height": "34",
+                        "background": "#119DFF",
+                        "border": "1px solid #119DFF",
+                        "color": "white",
+                    },
+                ),
+                className="two columns",
+                style={"float": "right"},
+            ),
+        ],
+        className="row",
+        style={"marginBottom": "10"},
+    ),
+
+    # indicators row div
+    html.Div(
+        [
+            indicator(
+                "#00cc96", "Converted Leads", "left_leads_indicator"
+            ),
+            indicator(
+                "#119DFF", "Open Leads", "middle_leads_indicator"
+            ),
+            indicator(
+                "#EF553B",
+                "Conversion Rates",
+                "right_leads_indicator",
+            ),
+        ],
+        className="row",
+    ),
+
+    # charts row div
+    html.Div(
+        [
+            html.Div(
+                [
+                    html.P("Leads count per state"),
+                    dcc.Graph(
+                        id="map",
+                        style={"height": "90%", "width": "98%"},
+                        config=dict(displayModeBar=False),
+                    ),
+                ],
+                className="four columns chart_div"
+            ),
+
+            html.Div(
+                [
+                    html.P("Leads by source"),
+                    dcc.Graph(
+                        id="lead_source",
+                        style={"height": "90%", "width": "98%"},
+                        config=dict(displayModeBar=False),
+                    ),
+                ],
+                className="four columns chart_div"
+            ),
+
+            html.Div(
+                [
+                    html.P("Converted Leads count"),
+                    dcc.Graph(
+                        id="converted_leads",
+                        style={"height": "90%", "width": "98%"},
+                        config=dict(displayModeBar=False),
+                    ),
+                ],
+                className="four columns chart_div"
+            ),
+        ],
+        className="row",
+        style={"marginTop": "5"},
+    ),
+
+    # table div
+    html.Div(
+        id="leads_table",
+        className="row",
+        style={
+            "maxHeight": "350px",
+            "overflowY": "scroll",
+            "padding": "8",
+            "marginTop": "5",
+            "backgroundColor": "white",
+            "border": "1px solid #C8D4E3",
+            "borderRadius": "3px"
+        },
+    ),
+
+
+    modal(),
+]

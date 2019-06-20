@@ -129,7 +129,6 @@ def modal():
 
 
 layout = [
-    html.Div(id='test', children=[]),
     # top controls
     html.Div(
         [
@@ -205,10 +204,9 @@ layout = [
 
     # charts row div
     html.Div(
-        [
-            html.P("Your asset price"),
-            dcc.Graph(id='stock-graph', style={
-                      "height": "100vh", "width": "98%"}, className="ten columns"),
+        [html.P("Your asset price"),
+        dcc.Graph(id='stock-graph', style={"height": "100vh", "width": "98%"},
+                     className="ten columns"),
         ]
     ),
     html.Div([html.Div([

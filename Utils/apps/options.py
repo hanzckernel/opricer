@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 import json
-import math
-
 import pandas as pd
 import flask
 import dash
@@ -9,444 +7,257 @@ from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.plotly as py
+import dash_table
 from plotly import graph_objs as go
-from ..app import app, indicator, millify, df_to_table
-# from app import  sf_manager
-
-states = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DC", "DE", "FL", "GA",
-          "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
-          "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-          "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
-          "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"]
-
-
-# returns choropleth map figure based on status filter
+from datetime import datetime, date
+from dash.exceptions import PreventUpdate
+from ..app import app
+import json
+import pandas_datareader.data as web
+import random
 
 
 def modal():
     return html.Div(
-        html.Div(
-            [
-                html.Div(
-                    [
+            html.Div([html.Div([
+            # modal header
+            html.Div(
+                [
+                    html.Span(
+                        "New Option",
+                        style={
+                            "color": "#506784",
+                            "fontWeight": "bold",
+                            "fontSize": "20",
+                        },
+                    ),
+                    html.Span(
+                        "x",
+                        id="option_modal_close",
+                        n_clicks=0,
+                        style={
+                            "float": "right",
+                            "cursor": "pointer",
+                            "marginTop": "0",
+                            "marginBottom": "17",
+                        },
+                    ),
+                ],
+                className="row",
+                style={"borderBottom": "1px solid #C8D4E3"},
+            ),
 
-                        # modal header
-                        html.Div(
-                            [
-                                html.Span(
-                                    "New Lead",
-                                    style={
-                                        "color": "#506784",
-                                        "fontWeight": "bold",
-                                        "fontSize": "20",
-                                    },
-                                ),
-                                html.Span(
-                                    "×",
-                                    id="leads_modal_close",
-                                    n_clicks=0,
-                                    style={
-                                        "float": "right",
-                                        "cursor": "pointer",
-                                        "marginTop": "0",
-                                        "marginBottom": "17",
-                                    },
-                                ),
-                            ],
-                            className="row",
-                            style={"borderBottom": "1px solid #C8D4E3"},
-                        ),
 
-                        # modal form
-                        html.Div(
-                            [
-                                html.P(
-                                    [
-                                        "Company Name",
-
-                                    ],
-                                    style={
-                                        "float": "left",
-                                        "marginTop": "4",
-                                        "marginBottom": "2",
-                                    },
-                                    className="row",
-                                ),
-                                dcc.Input(
-                                    id="new_lead_company",
-                                    # placeholder="Enter company name",
-                                    type="text",
-                                    value="",
-                                    style={"width": "100%"},
-                                ),
-                                html.P(
-                                    "Company State",
-                                    style={
-                                        "textAlign": "left",
-                                        "marginBottom": "2",
-                                        "marginTop": "4",
-                                    },
-                                ),
-                                dcc.Dropdown(
-                                    id="new_lead_state",
-                                    options=[
-                                        {"label": state, "value": state}
-                                        for state in states
-                                    ],
-                                    value="NY",
-                                ),
-                                html.P(
-                                    "Status",
-                                    style={
-                                        "textAlign": "left",
-                                        "marginBottom": "2",
-                                        "marginTop": "4",
-                                    },
-                                ),
-                                dcc.Dropdown(
-                                    id="new_lead_status",
-                                    options=[
-                                        {
-                                            "label": "Open - Not Contacted",
-                                            "value": "Open - Not Contacted",
-                                        },
-                                        {
-                                            "label": "Working - Contacted",
-                                            "value": "Working - Contacted",
-                                        },
-                                        {
-                                            "label": "Closed - Converted",
-                                            "value": "Closed - Converted",
-                                        },
-                                        {
-                                            "label": "Closed - Not Converted",
-                                            "value": "Closed - Not Converted",
-                                        },
-                                    ],
-                                    value="Open - Not Contacted",
-                                ),
-                                html.P(
-                                    "Source",
-                                    style={
-                                        "textAlign": "left",
-                                        "marginBottom": "2",
-                                        "marginTop": "4",
-                                    },
-                                ),
-                                dcc.Dropdown(
-                                    id="new_lead_source",
-                                    options=[
-                                        {"label": "Web", "value": "Web"},
-                                        {
-                                            "label": "Phone Inquiry",
-                                            "value": "Phone Inquiry",
-                                        },
-                                        {
-                                            "label": "Partner Referral",
-                                            "value": "Partner Referral",
-                                        },
-                                        {
-                                            "label": "Purchased List",
-                                            "value": "Purchased List",
-                                        },
-                                        {"label": "Other", "value": "Other"},
-                                    ],
-                                    value="Web",
-                                ),
-                            ],
-                            className="row",
-                            style={"padding": "2% 8%"},
-                        ),
-
-                        # submit button
-                        html.Span(
-                            "Submit",
-                            id="submit_new_lead",
-                            n_clicks=0,
-                            className="button button--primary add"
-                        ),
+            # modal form
+            html.Div([
+                dcc.Tabs(
+                    id="option_tabs",
+                    style={"height": "20",
+                           "verticalAlign": "middle"},
+                    children=[
+                        dcc.Tab(label="European Option",
+                                value="EurOption"),
+                        dcc.Tab(label="American Option", value="AmeOption"),
+                        dcc.Tab(label='Barrier Option', value="BarOption"),
                     ],
-                    className="modal-content",
-                    style={"textAlign": "center"},
-                )
-            ],
+                    value="EurOption",
+                ),
+                html.Div(id='option_tab_content')],
+                className="row",
+                style={"paddingTop": "2%"},
+            ),
+
+            # submit button
+            html.Span(
+                "Submit",
+                id="submit_new_option",
+                n_clicks=0,
+                className="button button--primary add"
+            ),
+        ],
+            className="modal-content",
+            style={"textAlign": "center"},
+        )
+        ],
             className="modal",
         ),
-        id="leads_modal",
+        id="option_modal",
         style={"display": "none"},
     )
 
 
 layout = [
-
     # top controls
     html.Div(
         [
             html.Div(
-                dcc.Dropdown(
-                    id="converted_leads_dropdown",
-                    options=[
-                        {"label": "By day", "value": "D"},
-                        {"label": "By week", "value": "W-MON"},
-                        {"label": "By month", "value": "M"},
-                    ],
-                    value="D",
+                dcc.DatePickerSingle(
+                    id="date_picker",
+                    placeholder='Choose Your Spot Date',
+                    display_format='MMM Do, YYYY',
+                    # value="D",
                     clearable=False,
                 ),
-                className="two columns",
+                className="four columns"
             ),
             html.Div(
-                dcc.Dropdown(
-                    id="lead_source_dropdown",
-                    options=[
-                        {"label": "All status", "value": "all"},
-                        {"label": "Open leads", "value": "open"},
-                        {"label": "Converted leads", "value": "converted"},
-                        {"label": "Lost leads", "value": "lost"},
-                    ],
-                    value="all",
-                    clearable=False,
-                ),
+                dcc.Dropdown(id="ppty_input",
+                             options=[{'label': 'Open Price', 'value': 'Open'},
+                                      {'label': 'Close Price', 'value': 'Close'},
+                                      {'label': 'Daily High', 'value': 'High'},
+                                      {'label': 'Daily Low', 'value': 'Low'},
+                                      {'label': 'Adjoint Close', 'value': 'Adj Close'}],
+                             value='Adj Close',
+                             clearable=False),
                 className="two columns",
             ),
 
             # add button
             html.Div(
                 html.Span(
-                    "Add new",
-                    id="new_lead",
+                    "Watch New Asset",
+                    id="new_stock",
                     n_clicks=0,
-                    className="button button--primary",
-                    style={
-                        "height": "34",
-                        "background": "#119DFF",
-                        "border": "1px solid #119DFF",
-                        "color": "white",
-                    },
+                    className="button button--primary add"
                 ),
                 className="two columns",
-                style={"float": "right"},
+                style={"float": "right", 'width': 'auto'},
             ),
         ],
         className="row",
-        style={"marginBottom": "10"},
+        style={"marginBottom": "10", "padding-bottom": "10px"},
     ),
 
-    # indicators row div
+    # indicators row
     html.Div(
-        [
-            indicator(
-                "#00cc96", "Converted Leads", "left_leads_indicator"
-            ),
-            indicator(
-                "#119DFF", "Open Leads", "middle_leads_indicator"
-            ),
-            indicator(
-                "#EF553B",
-                "Conversion Rates",
-                "right_leads_indicator",
-            ),
-        ],
+        [dcc.Dropdown(id='total_ticker',
+                      options=[{'label': 'AAPL', 'value': 'AAPL'},
+                               {'label': 'TSLA', 'value': 'TSLA'}],
+                      value=['AAPL'],
+                      placeholder='Enter a stock ticker', multi=True, className="ten columns"),
+         html.Button(children='Clear All Stocks', id='clear', n_clicks=0,
+                     className='two columns'),
+         dcc.Input(id='true_clear', value=0, style={'display': 'None'}),
+         ],
         className="row",
     ),
-
+    html.Div([html.P('The Correlation Matrix'),
+            dash_table.DataTable(
+            id='corr_matrix',
+            columns=[],
+            data=[],
+            editable=True,
+    )]),
     # charts row div
     html.Div(
-        [
-            html.Div(
-                [
-                    html.P("Leads count per state"),
-                    dcc.Graph(
-                        id="map",
-                        style={"height": "90%", "width": "98%"},
-                        config=dict(displayModeBar=False),
-                    ),
-                ],
-                className="four columns chart_div"
-            ),
-
-            html.Div(
-                [
-                    html.P("Leads by source"),
-                    dcc.Graph(
-                        id="lead_source",
-                        style={"height": "90%", "width": "98%"},
-                        config=dict(displayModeBar=False),
-                    ),
-                ],
-                className="four columns chart_div"
-            ),
-
-            html.Div(
-                [
-                    html.P("Converted Leads count"),
-                    dcc.Graph(
-                        id="converted_leads",
-                        style={"height": "90%", "width": "98%"},
-                        config=dict(displayModeBar=False),
-                    ),
-                ],
-                className="four columns chart_div"
-            ),
-        ],
-        className="row",
-        style={"marginTop": "5"},
+        [html.P("Your asset price"),
+         dcc.Graph(id='stock-graph', style={"height": "100vh", "width": "98%"},
+                   className="ten columns"),
+         ]
     ),
-
-    # table div
+    html.Div([html.Div([
+        html.P('Your OHLC Diagram'),
+        dcc.Graph(id='stock-ohlc', style={"height": "90vh", "width": "98%"},
+                  className="ten columns"),
+    ], className='six columns'),
+        html.Div([
+            html.P('Your Candlestick Diagram'),
+            dcc.Graph(id='stock-candlestick', style={"height": "90vh", "width": "98%"},
+                      className="ten columns")
+        ], className='six columns')], className='row'),
+    # tables row div
     html.Div(
-        id="leads_table",
+        [modal()],
         className="row",
-        style={
-            "maxHeight": "350px",
-            "overflowY": "scroll",
-            "padding": "8",
-            "marginTop": "5",
-            "backgroundColor": "white",
-            "border": "1px solid #C8D4E3",
-            "borderRadius": "3px"
-        },
+        style={"marginTop": "5px", "max height": "200px"},
     ),
-
-
-    modal(),
 ]
 
 
-# updates left indicator based on df updates
-@app.callback(
-    Output("left_leads_indicator", "children"), [Input("leads_df", "children")]
-)
-def left_leads_indicator_callback(df):
-    df = pd.read_json(df, orient="split")
-    converted_leads = len(df[df["Status"] == "Closed - Converted"].index)
-    return converted_leads
+# @app.callback([Output('total_ticker', 'value'), Output('total_ticker', 'options'),
+#                Output('true_clear', 'value')],
+#               [Input("submit_new_option", "n_clicks"),
+#                Input('clear', 'n_clicks')],
+#               [State('submit_input', 'value'),
+#                State('total_ticker', 'value'), State(
+#                    'total_ticker', 'options'),
+#                State('true_clear', 'value')])
+# def update_ticker(submit_btn, clear_btn, new_ticker, current_ticker, current_options, state):
+#     new_ticker = str.upper("".join(new_ticker.split())
+#                            )  # preprocessing the ticker
+#     new_entry = {'label': new_ticker, 'value': new_ticker}
+#     if int(clear_btn) != state:
+#         current_options.clear()
+#         state = int(clear_btn)
+#     elif submit_btn > 0 and new_ticker:
+#         if new_entry not in current_options:
+#             current_options.append(new_entry)
+#         if new_ticker not in current_ticker:
+#             current_ticker += [new_ticker]
+#     else:
+#         pass
+#     return current_ticker, current_options, state
 
 
-# updates middle indicator based on df updates
-@app.callback(
-    Output("middle_leads_indicator", "children"), [
-        Input("leads_df", "children")]
-)
-def middle_leads_indicator_callback(df):
-    df = pd.read_json(df, orient="split")
-    open_leads = len(
-        df[
-            (df["Status"] == "Open - Not Contacted")
-            | (df["Status"] == "Working - Contacted")
-        ].index
-    )
-    return open_leads
+@app.callback([Output('corr_matrix', 'columns'), Output('corr_matrix', 'data')])
+@app.callback([Output('option_tab_content', 'children')], [Input("option_tabs", "value")])
+def render_content(tab):
+    if tab == "EurOption":
+        return [html.Div([
+            dcc.DatePickerSingle(id='strikeDate'),
+            dcc.Dropdown(id='otype',
+            options=[{'label': 'Call Option', 'value': 'call'},
+            {'label': 'Put Option', 'value': 'put'}]),
+            dcc.Input(id='strike', type='number', placeholder='Strike pls')
+        ])]
+    elif tab == "AmeOption":
+        return [html.Div([
+            dcc.DatePickerSingle(id='strikeDate'),
+            dcc.Dropdown(id='otype',
+            options=[{'label': 'Call Option', 'value': 'call'},
+            {'label': 'Put Option', 'value': 'put'}]),
+            dcc.Input(id='strike', type='number', placeholder='Strike pls'),
+            dcc.Input(id='coupon', type='number',
+                      placeholder='Coupon structure pls')
+        ])]
+    elif tab == "BarOption":
+        return [html.Div(
+            [dcc.DatePickerSingle(id='strikeDate'),
+            dcc.Dropdown(id='otype',
+            options=[{'label': 'Call Option', 'value': 'call'},
+            {'label': 'Put Option', 'value': 'put'}]),
+            dcc.Input(id='strike', type='number', placeholder='Strike pls'),
+            dcc.Input(id='rebate', type='number', placeholder='Rebate pls')]
+        )]
+    else:
+        raise ValueError("Not working")
+
+# @app.callback(
+#     Output('submit_input', 'value'), [Input("submit_input_selected", 'value')]
+# )
+# def finalize_ticker(ticker):
+#     if not ticker:
+#         raise PreventUpdate
+#     else:
+#         return ticker
 
 
-# updates right indicator based on df updates
-@app.callback(
-    Output("right_leads_indicator", "children"), [
-        Input("leads_df", "children")]
-)
-def right_leads_indicator_callback(df):
-    df = pd.read_json(df, orient="split")
-    converted_leads = len(df[df["Status"] == "Closed - Converted"].index)
-    lost_leads = len(df[df["Status"] == "Closed - Not Converted"].index)
-    conversion_rates = converted_leads / (converted_leads + lost_leads) * 100
-    conversion_rates = "%.2f" % conversion_rates + "%"
-    return conversion_rates
-
-
-# update pie chart figure based on dropdown's value and df updates
-@app.callback(
-    Output("lead_source", "figure"),
-    [Input("lead_source_dropdown", "value"), Input("leads_df", "children")],
-)
-def lead_source_callback(status, df):
-    df = pd.read_json(df, orient="split")
-    return lead_source(status, df)
-
-
-# update heat map figure based on dropdown's value and df updates
-@app.callback(
-    Output("map", "figure"),
-    [Input("lead_source_dropdown", "value"), Input("leads_df", "children")],
-)
-def map_callback(status, df):
-    df = pd.read_json(df, orient="split")
-    return choropleth_map(status, df)
-
-
-# update table based on dropdown's value and df updates
-@app.callback(
-    Output("leads_table", "children"),
-    [Input("lead_source_dropdown", "value"), Input("leads_df", "children")],
-)
-def leads_table_callback(status, df):
-    df = pd.read_json(df, orient="split")
-    if status == "open":
-        df = df[
-            (df["Status"] == "Open - Not Contacted")
-            | (df["Status"] == "Working - Contacted")
-        ]
-    elif status == "converted":
-        df = df[df["Status"] == "Closed - Converted"]
-    elif status == "lost":
-        df = df[df["Status"] == "Closed - Not Converted"]
-    df = df[["CreatedDate", "Status", "Company", "State", "LeadSource"]]
-    return df_to_table(df)
-
-
-# update pie chart figure based on dropdown's value and df updates
-@app.callback(
-    Output("converted_leads", "figure"),
-    [Input("converted_leads_dropdown", "value"),
-     Input("leads_df", "children")],
-)
-def converted_leads_callback(period, df):
-    df = pd.read_json(df, orient="split")
-    return converted_leads_count(period, df)
-
-
-# hide/show modal
-@app.callback(Output("leads_modal", "style"), [Input("new_lead", "n_clicks")])
-def display_leads_modal_callback(n):
-    if n > 0:
-        return {"display": "block"}
-    return {"display": "none"}
+# @app.callback(
+#     Output("option_modal", "style"), [Input("new_stock", "n_clicks")]
+# )
+# def display_stock_modal_callback(n):
+#     if n > 0:
+#         return {"display": "block"}
+#     return {"display": "none"}
 
 
 # reset to 0 add button n_clicks property
-@app.callback(
-    Output("new_lead", "n_clicks"),
-    [Input("leads_modal_close", "n_clicks"),
-     Input("submit_new_lead", "n_clicks")],
-)
-def close_modal_callback(n, n2):
-    return 0
-
-
-# add new lead to salesforce and stores new df in hidden div
-@app.callback(
-    Output("leads_df", "children"),
-    [Input("submit_new_lead", "n_clicks")],
-    [
-        State("new_lead_status", "value"),
-        State("new_lead_state", "value"),
-        State("new_lead_company", "value"),
-        State("new_lead_source", "value"),
-        State("leads_df", "children"),
-    ],
-)
-def add_lead_callback(n_clicks, status, state, company, source, current_df):
-    if n_clicks > 0:
-        if company == "":
-            company = "Not named yet"
-        query = {
-            "LastName": company,
-            "Company": company,
-            "Status": status,
-            "State": state,
-            "LeadSource": source,
-        }
-        # sf_manager.add_lead(query)
-        # df = sf_manager.get_leads()
-        return df.to_json(orient="split")
-
-    return current_df
+# @app.callback(
+#     Output("new_stock", "n_clicks"),
+#     [
+#         Input("option_modal_close", "n_clicks"),
+#         Input("submit_new_option", "n_clicks"),
+#     ],
+# )
+# def close_modal_callback(n, n2):
+#     return 0

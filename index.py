@@ -94,7 +94,7 @@ def render_content(tab):
     elif tab == "option_tab":
         return options.layout
     else:
-        return stock.layout
+        return options.layout
 
 
 if __name__ == "__main__":

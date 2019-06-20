@@ -3,31 +3,13 @@ import abc
 import datetime
 import numpy as np
 from scipy.sparse import diags
-from opricer.data import models
+from opricer.model import models
 from opricer.tools.mathtool import force_broadcast, back_quad
 from functools import partial
+import analytics
 
 
-class GenericPDESolver(abc.ABC):
-
-    @abc.abstractmethod
-    def get_price(model):
-        pass
-
-    @classmethod
-    def _gen_grid(cls, low_val, high_val, start_time, end_time, time_no, asset_no):
-        cls.time_samples = np.linspace(start_time, end_time, int(time_no))
-        cls.asset_samples = np.linspace(low_val, high_val, int(asset_no))
-
-
-
-
-class EurSolver(GenericPDESolver):
-    def __init__(self, time_no=100, asset_no=100, low_val=0, high_val=5):
-        self.time_no = time_no
-        self.asset_no = asset_no
-        self.low_val = low_val
-        self.high_val = high_val
+class EurSolver(analytics.AnalyticSolver):
 
     def __call__(self, model, greeks = ['price']):
         total_output = self.get_price(model)

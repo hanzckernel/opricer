@@ -7,14 +7,15 @@ from opricer.tools.mathtool import force_broadcast, poly_transform_
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from itertools import combinations_with_replacement
+from scipy.linalg import cholesky
+import datetime
+import pandas as pd
 
 
-def f(x, y):
-    return x ** 2 + x * y + y ** 2
-
-
-x = np.arange(10)
-y = np.arange(5)
+start = pd.Timestamp(datetime.datetime(2011, 1, 1))
+end = pd.Timestamp(datetime.datetime(2012, 1, 1))
+idx = pd.to_datetime(np.linspace(start.value, end.value, 10))
+print(idx)
 
 
 # vol = 0.2

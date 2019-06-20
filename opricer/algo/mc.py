@@ -1,12 +1,13 @@
 
 import numpy as np
-from opricer.data import models
+from opricer.model import models
 import datetime
 import random
 import abc
 from numpy.random import randn
 from math import sqrt
 from opricer.tools.mathtool import force_broadcast, back_quad, ArrFunc, poly_transform_
+from scipy.linalg import cholesky
 from scipy.integrate import quad
 # from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
@@ -183,8 +184,10 @@ class BasketMCSolver(EurMCSolver):
         generate path in shape: (asset_no, path_no, AssetCount)
         """
         self._gen_parameter(model, self.time_no)
+        corr_sqrt = cholesky(model.corr_mat, lower=True)
         coef_dW, coef_dt = self._gen_coeff(model)
         random_set = randn(self.path_no, self.time_no, model.AssetCount)
+        random_set = np.dot(random_set, corr_sqrt)
         self.asset_samples = np.expand_dims(self.asset_samples, axis=1)
         asset = np.tile(self.asset_samples, (1, self.path_no, 1))
         asset_lst = [asset.copy()]
@@ -202,59 +205,19 @@ class BasketAmeSolver(BasketMCSolver, AmeMCSolver):
 
     def get_price(self, model):
         return AmeMCSolver.get_price(self, model)
-        # '''asset_lst.shape = (self.BTime_no, self.asset_no, self.BPath_no)'''
-        # asset_lst = self._gen_path(model)
-        # reg_model = LinearRegression()
-        # cum_intrate = back_quad(model.int_rate, self.time_samples)
-        # lst_payoff = model.payoff(asset_lst)
-        # stopping_idx = -np.ones((self.asset_no, self.path_no), dtype=int)
-        # stopping_val = [lst_payoff[-1], stopping_idx]
-        # for time_idx in range(-2, -self.time_no - 1, -1):
-        #     asset_left = asset_lst[time_idx]
-        #     non_zero_idx = np.nonzero(lst_payoff[time_idx])
-        #     X_axis = asset_left[non_zero_idx]
-        #     Y_axis = (np.exp(cum_intrate[- stopping_val[1] - 1] - cum_intrate[-time_idx - 1]) *
-        #               stopping_val[0])[non_zero_idx]
-        #     if X_axis.size != 0:
-        #         X_poly, total_poly = [poly_transform_(
-        #             x, axis=-1, deg=4) for x in [X_axis, asset_left]]
-        #         '''total_poly.shape = (deg_mix, self.BPath_no, self.asset_no)'''
-        #         reg_model.fit(X_poly, Y_axis)
-        #         print(reg_model.score(X_poly, Y_axis))
-        #         Y_pred = total_poly @ reg_model.coef_ + reg_model.intercept_
-        #         Y_pred = np.clip(Y_pred, 0, None)
-        #         X_payoff = lst_payoff[time_idx]
-        #         stopping_val[1][X_payoff > Y_pred] = time_idx
-        #         stopping_val[0] = np.where(
-        #             X_payoff > Y_pred, X_payoff, stopping_val[0])
-        #     else:
-        #         break
-        # fair_price = (stopping_val[0] * (np.exp(
-        #     cum_intrate[-stopping_val[1] - 1])-cum_intrate[-1])).sum(axis=1)/self.path_no
-        # # first_nonzero = np.argwhere(stopping_val[0] == 0)[1]
-        # return fair_price
 
 
-# a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
-# a1 = models.Underlying(datetime.datetime(2010, 1, 1), 100)
-# b = models.BasketOption(datetime.datetime(2011, 1, 1), 'call')
-# c = models.AmeOption(datetime.datetime(2011, 1, 1), 'call')
-
-# b._attach_asset(100, a, a1)
-# c._attach_asset(100, a)
-# # solver = BasketMCSolver()
-# solver = AmeMCSolver()
-# solver2 = BasketAmeSolver()
-# print(solver2(b), solver(c))
-
-
-# sol = BasketMCSolver()
-# print(sol._gen_path(b))
-# b = models.EurOption(datetime.datetime(2011, 1, 1), 'call')
-# c = models.AmeOption(datetime.datetime(2011, 1, 1), 'call')
-# c._attach_asset(100, a)
-# b._attach_asset(100, a)
-# AmeSolver = AmeMCSolver()
-# EurSolver = EurMCSolver()
-# # print(EurSolver._gen_path(b)[:, 20], EurSolver.asset_samples[20])
-# print(AmeSolver(c))
+a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
+a1 = models.Underlying(datetime.datetime(2010, 1, 1), 200)
+b = models.EurOption(datetime.datetime(2011, 1, 1), 'call')
+b1 = models.AmeOption(datetime.datetime(2011, 1, 1), 'call')
+c = models.BasketOption(datetime.datetime(2011, 1, 1), 'call')
+d = models.BarOption(datetime.datetime(2011, 1, 1), 'put')
+b._attach_asset(100, a)
+b1._attach_asset(100, a1)
+c._attach_asset(100, a, a1)
+c.set_corr(-0.9)
+# solver2 = pde.AmeSolver(high_val=2, low_val=0)
+MSolver = BasketMCSolver()
+print(MSolver(c))
+# print(c.corr_mat)

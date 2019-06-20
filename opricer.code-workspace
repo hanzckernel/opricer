@@ -1,0 +1,22 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "python.pythonPath": "/Users/hanzhicheng/anaconda3/bin/python",
+    "python.testing.promptToConfigure": false,
+    "python.testing.pyTestEnabled": false,
+    "python.testing.unittestEnabled": false,
+    "python.testing.nosetestsEnabled": false,
+
+    "liveSassCompile.settings.formats": [
+      {
+        "format": "compressed",
+        "extensionName": ".min.css",
+        "savePath": "/Utils/assets"
+      }
+    ]
+  }
+}

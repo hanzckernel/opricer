@@ -86,10 +86,3 @@ def poly_transform_(arr, axis=None, deg=2):
         (poly_deg.shape[0],) + (1,) * (arr.ndim - 1) + (poly_deg.shape[1],))
     out_arr = np.power(arr, poly_deg).prod(axis=-1)
     return np.moveaxis(out_arr, 0, -1)
-
-
-arr = np.arange(10)
-# arr = np.moveaxis(arr, 0, -1)
-print(arr.shape, poly_transform_(arr, axis=None, deg=3).shape)
-
-# %%

@@ -10,20 +10,17 @@ import dash_core_components as dcc
 import dash_html_components as html
 import plotly.plotly as py
 from plotly import graph_objs as go
-
-from app import app, indicator, millify, df_to_table
+from ..app import app, indicator, millify, df_to_table
 # from app import  sf_manager
 
-states = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DC", "DE", "FL", "GA", 
-          "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
-          "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
-          "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
+states = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DC", "DE", "FL", "GA",
+          "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+          "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+          "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
           "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"]
 
 
-
 # returns choropleth map figure based on status filter
-
 
 
 def modal():
@@ -31,7 +28,7 @@ def modal():
         html.Div(
             [
                 html.Div(
-                    [   
+                    [
 
                         # modal header
                         html.Div(
@@ -66,7 +63,7 @@ def modal():
                                 html.P(
                                     [
                                         "Company Name",
-                                        
+
                                     ],
                                     style={
                                         "float": "left",
@@ -258,7 +255,7 @@ layout = [
         [
             html.Div(
                 [
-                    html.P("Leads count per state" ),
+                    html.P("Leads count per state"),
                     dcc.Graph(
                         id="map",
                         style={"height": "90%", "width": "98%"},
@@ -305,7 +302,7 @@ layout = [
             "overflowY": "scroll",
             "padding": "8",
             "marginTop": "5",
-            "backgroundColor":"white",
+            "backgroundColor": "white",
             "border": "1px solid #C8D4E3",
             "borderRadius": "3px"
         },
@@ -328,7 +325,8 @@ def left_leads_indicator_callback(df):
 
 # updates middle indicator based on df updates
 @app.callback(
-    Output("middle_leads_indicator", "children"), [Input("leads_df", "children")]
+    Output("middle_leads_indicator", "children"), [
+        Input("leads_df", "children")]
 )
 def middle_leads_indicator_callback(df):
     df = pd.read_json(df, orient="split")
@@ -343,7 +341,8 @@ def middle_leads_indicator_callback(df):
 
 # updates right indicator based on df updates
 @app.callback(
-    Output("right_leads_indicator", "children"), [Input("leads_df", "children")]
+    Output("right_leads_indicator", "children"), [
+        Input("leads_df", "children")]
 )
 def right_leads_indicator_callback(df):
     df = pd.read_json(df, orient="split")
@@ -397,7 +396,8 @@ def leads_table_callback(status, df):
 # update pie chart figure based on dropdown's value and df updates
 @app.callback(
     Output("converted_leads", "figure"),
-    [Input("converted_leads_dropdown", "value"), Input("leads_df", "children")],
+    [Input("converted_leads_dropdown", "value"),
+     Input("leads_df", "children")],
 )
 def converted_leads_callback(period, df):
     df = pd.read_json(df, orient="split")
@@ -412,10 +412,11 @@ def display_leads_modal_callback(n):
     return {"display": "none"}
 
 
-# reset to 0 add button n_clicks property 
+# reset to 0 add button n_clicks property
 @app.callback(
     Output("new_lead", "n_clicks"),
-    [Input("leads_modal_close", "n_clicks"), Input("submit_new_lead", "n_clicks")],
+    [Input("leads_modal_close", "n_clicks"),
+     Input("submit_new_lead", "n_clicks")],
 )
 def close_modal_callback(n, n2):
     return 0

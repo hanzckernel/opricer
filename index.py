@@ -8,9 +8,9 @@ import flask
 import plotly.plotly as py
 from plotly import graph_objs as go
 import math
-from app import app, server
+from Utils.app import app, server
 # from app import sf_manager
-from apps import stock, options
+from Utils.apps import stock, options
 # from apps import cases
 
 app.layout = html.Div(

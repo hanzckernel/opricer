@@ -10,7 +10,7 @@ import plotly.plotly as py
 from plotly import graph_objs as go
 from datetime import datetime, date
 from dash.exceptions import PreventUpdate
-from app import app, indicator, millify, df_to_table
+from ..app import app
 import json
 import pandas_datareader.data as web
 import random
@@ -18,10 +18,10 @@ import random
 # with open("./data/ticker.json", "r") as read_file:
 #     labelFull = json.load(read_file)
 
-dfStock = pd.read_csv('../data/stock.csv')
-dfETF = pd.read_csv("../data/ETF.csv")
-dfCUR = pd.read_csv("../data/currency.csv")
-dfIdx = pd.read_csv("../data/index.csv")
+dfStock = pd.read_csv('./data/stock.csv')
+dfETF = pd.read_csv("./data/ETF.csv")
+dfCUR = pd.read_csv("./data/currency.csv")
+dfIdx = pd.read_csv("./data/index.csv")
 
 
 def gen_dropdown_options(df, cols):

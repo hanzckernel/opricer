@@ -40,9 +40,8 @@ app.layout = html.Div(
                     dcc.Tab(label="Option Pricing", value="option_tab"),
                     # dcc.Tab(id="cases_tab", label="Cases", value="cases_tab"),
                 ],
-                value="stock_tab",
+                value="option_tab",
             )
-
         ],
             className="row tabs_div"
         ),
@@ -94,7 +93,7 @@ def render_content(tab):
     elif tab == "option_tab":
         return options.layout
     else:
-        return stock.layout
+        return options.layout
 
 
 if __name__ == "__main__":

@@ -92,17 +92,28 @@ def modal():
                     ],
                     value="ETF",
                 ),
+
                 html.Div(children=[
+                    html.P("Enter your ticker here directly"),
                     dcc.Input(id='submit_input', value='',
                               placeholder='Enter Your Ticker'),
-                    html.Span('Or choose from the following',
-                              style={"borderLeft": "1px solid #C8D4E3",
-                                     'borderRight': '1px solid #C8D4E3',
-                                     'textAlign': 'center'}),
+                    html.P(
+                        html.Span('Or choose from the following category',
+                        style={
+                            'background':'#fff','padding':'0 10px',
+                            'fontSize': '18px'
+                        }),
+                        style={'textAlign': 'center',
+                               'borderBottom': '1px solid grey',
+                               'lineHeight': '0.1em',
+                               'width': '100%',
+                               'margin': '30px 40px 30px 10px'
+                               }),
                     # TODO: Find out better way for loading large data
+                    html.Div(id='asset_tab_content'),
+                    html.P('Choose your ticker'),
                     dcc.Dropdown(id='submit_input_selected', options=[],
-                                 placeholder='Enter your ticker', value=''),
-                    html.Div(id='asset_tab_content')
+                                 placeholder='Search your ticker by name here', value=''),
                 ])],
                 className="row",
                 style={"paddingTop": "2%"},
@@ -129,7 +140,6 @@ def modal():
 
 
 layout = [
-    html.Div(id='test', children=[]),
     # top controls
     html.Div(
         [
@@ -205,25 +215,25 @@ layout = [
 
     # charts row div
     html.Div(
-        [
-            html.P("Your asset price"),
-            dcc.Graph(id='stock-graph', style={
-                      "height": "100vh", "width": "98%"}, className="ten columns"),
-        ]
+        [html.P("Asset price", className='title'),
+         dcc.Graph(id='stock-graph', 
+                    style={"height": "100vh", "width": "98%"},
+                   className="ten columns"),
+         ]
     ),
     html.Div([html.Div([
-        html.P('Your OHLC Diagram'),
+        html.P('OHLC Diagram', className='title'),
         dcc.Graph(id='stock-ohlc', style={"height": "90vh", "width": "98%"},
                   className="ten columns"),
     ], className='six columns'),
         html.Div([
-            html.P('Your Candlestick Diagram'),
+            html.P('Candlestick Diagram', className='title'),
             dcc.Graph(id='stock-candlestick', style={"height": "90vh", "width": "98%"},
                       className="ten columns")
         ], className='six columns')], className='row'),
     # tables row div
     html.Div(
-        [modal()],
+        modal(),
         className="row",
         style={"marginTop": "5px", "max height": "200px"},
     ),
@@ -259,32 +269,51 @@ def update_ticker(submit_btn, clear_btn, new_ticker, current_ticker, current_opt
 def render_content(tab):
     if tab == "equity":
         return [html.Div([
+            html.P('Country'),
             dcc.Dropdown(id='select_country',
                          options=gen_dropdown_options(dfStock, ['Country'])),
+            html.P('Stock Exchange'),
             dcc.Dropdown(id='select_exchange', options=exchange_dic),
+            html.P('Category of Business'),
             dcc.Dropdown(id='select_category',
                          options=gen_dropdown_options(dfStock, ['Category']))
         ])]
     elif tab == "ETF":
         return [html.Div([
+            html.P('Stock Exchange Ticker'),
             dcc.Dropdown(id='select_exchange', options=etf_exchange_dic),
             dcc.Input(id='select_country', style={'display': 'None'}),
             dcc.Input(id='select_category', style={'display': 'None'})])
         ]
     elif tab == "idx":
         return [html.Div(
-            [dcc.Dropdown(id='select_exchange', options=idx_exchange_dic),
+            [
+            html.P('Stock Exchange Ticker'),
+            dcc.Dropdown(id='select_exchange', options=idx_exchange_dic),
              dcc.Input(id='select_country', style={'display': 'None'}),
              dcc.Input(id='select_category', style={'display': 'None'})]
         )]
     elif tab == "currency":
         return [html.Div(
-            [dcc.Dropdown(id='select_exchange', options=idx_exchange_dic),
+            [
+            html.P('Stock Exchange Ticker'),
+            dcc.Dropdown(id='select_exchange', options=idx_exchange_dic),
              dcc.Input(id='select_exchange', style={'display': 'None'}),
              dcc.Input(id='select_category', style={'display': 'None'})]
         )]
     else:
         raise ValueError("Not working")
+
+@app.callback(
+    Output('select_exchange', 'options'), [Input('select_country', 'value')],
+    [State('asset_tabs', 'value')]
+)
+def locate_exchange(country, tab):
+    if country and tab == 'equity':
+        df_trunc = dfStock[dfStock['Country'] == country]
+        return gen_dropdown_options(df_trunc, ['SE_Name', 'Exchange'])
+    else:
+        raise PreventUpdate
 
 
 @app.callback(

@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 import json
-import math
-
 import pandas as pd
 import flask
 import dash
@@ -9,444 +7,345 @@ from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.plotly as py
+import dash_table
 from plotly import graph_objs as go
-from ..app import app, indicator, millify, df_to_table
-# from app import  sf_manager
-
-states = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DC", "DE", "FL", "GA",
-          "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
-          "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-          "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
-          "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"]
-
-
-# returns choropleth map figure based on status filter
+from datetime import datetime, date
+from dash.exceptions import PreventUpdate
+from ..app import app
+import json
+import pandas_datareader.data as web
+import random
 
 
 def modal():
     return html.Div(
-        html.Div(
-            [
+        html.Div([html.Div([
+            # modal header
                 html.Div(
                     [
+                    html.Span(
+                        "New Option",
+                        style={
+                            "color": "#506784",
+                            "fontWeight": "bold",
+                            "fontSize": "20",
+                        },
+                    ),
+                    html.Span(
+                        "x",
+                        id="option_modal_close",
+                        n_clicks=0,
+                        style={
+                            "float": "right",
+                            "cursor": "pointer",
+                            "marginTop": "0",
+                            "marginBottom": "17",
+                        },
+                    ),
+                ],
+                    className="row",
+                    style={"borderBottom": "1px solid #C8D4E3"},
+                    ),
 
-                        # modal header
-                        html.Div(
-                            [
-                                html.Span(
-                                    "New Lead",
-                                    style={
-                                        "color": "#506784",
-                                        "fontWeight": "bold",
-                                        "fontSize": "20",
-                                    },
-                                ),
-                                html.Span(
-                                    "×",
-                                    id="leads_modal_close",
-                                    n_clicks=0,
-                                    style={
-                                        "float": "right",
-                                        "cursor": "pointer",
-                                        "marginTop": "0",
-                                        "marginBottom": "17",
-                                    },
-                                ),
-                            ],
-                            className="row",
-                            style={"borderBottom": "1px solid #C8D4E3"},
-                        ),
 
-                        # modal form
-                        html.Div(
-                            [
-                                html.P(
-                                    [
-                                        "Company Name",
+            # modal form
+                html.Div([
+                    html.P('Name of Asset'),
 
-                                    ],
-                                    style={
-                                        "float": "left",
-                                        "marginTop": "4",
-                                        "marginBottom": "2",
-                                    },
-                                    className="row",
-                                ),
-                                dcc.Input(
-                                    id="new_lead_company",
-                                    # placeholder="Enter company name",
-                                    type="text",
-                                    value="",
-                                    style={"width": "100%"},
-                                ),
-                                html.P(
-                                    "Company State",
-                                    style={
-                                        "textAlign": "left",
-                                        "marginBottom": "2",
-                                        "marginTop": "4",
-                                    },
-                                ),
-                                dcc.Dropdown(
-                                    id="new_lead_state",
-                                    options=[
-                                        {"label": state, "value": state}
-                                        for state in states
-                                    ],
-                                    value="NY",
-                                ),
-                                html.P(
-                                    "Status",
-                                    style={
-                                        "textAlign": "left",
-                                        "marginBottom": "2",
-                                        "marginTop": "4",
-                                    },
-                                ),
-                                dcc.Dropdown(
-                                    id="new_lead_status",
-                                    options=[
-                                        {
-                                            "label": "Open - Not Contacted",
-                                            "value": "Open - Not Contacted",
-                                        },
-                                        {
-                                            "label": "Working - Contacted",
-                                            "value": "Working - Contacted",
-                                        },
-                                        {
-                                            "label": "Closed - Converted",
-                                            "value": "Closed - Converted",
-                                        },
-                                        {
-                                            "label": "Closed - Not Converted",
-                                            "value": "Closed - Not Converted",
-                                        },
-                                    ],
-                                    value="Open - Not Contacted",
-                                ),
-                                html.P(
-                                    "Source",
-                                    style={
-                                        "textAlign": "left",
-                                        "marginBottom": "2",
-                                        "marginTop": "4",
-                                    },
-                                ),
-                                dcc.Dropdown(
-                                    id="new_lead_source",
-                                    options=[
-                                        {"label": "Web", "value": "Web"},
-                                        {
-                                            "label": "Phone Inquiry",
-                                            "value": "Phone Inquiry",
-                                        },
-                                        {
-                                            "label": "Partner Referral",
-                                            "value": "Partner Referral",
-                                        },
-                                        {
-                                            "label": "Purchased List",
-                                            "value": "Purchased List",
-                                        },
-                                        {"label": "Other", "value": "Other"},
-                                    ],
-                                    value="Web",
-                                ),
-                            ],
-                            className="row",
-                            style={"padding": "2% 8%"},
-                        ),
+                    dcc.Input(id="asset_name", type='text',
+                    placeholder='Asset Name'),
 
-                        # submit button
-                        html.Span(
-                            "Submit",
-                            id="submit_new_lead",
-                            n_clicks=0,
-                            className="button button--primary add"
-                        ),
-                    ],
-                    className="modal-content",
-                    style={"textAlign": "center"},
-                )
+                    html.P("Spot Price"),
+
+                    dcc.Input(id="spot", type='number',
+                    step=10, min= 0,
+                    placeholder='Spot Price'),
+
+                    html.P("Risk-free interest rate (%)"),
+
+                    dcc.Input(id="int_rate", type='number',
+                    value = 0,
+                    placeholder='Risk-free rate'),
+
+                    html.P("Volatility (%)"),
+
+                    dcc.Input(id="volatility", type='number',
+                    step=0.5, min= 0,
+                    placeholder='Volatility'),
+
+                    html.P("Dividend (%)"),
+
+                    dcc.Input(
+                    id="dividend", type='number',
+                    step=0.5, min= 0, value=0,
+                    placeholder='Dividend',
+                ),
+                ],
+                    className="row",
+                    style={"paddingTop": "2%"},
+                    ),
+
+            # submit button
+                html.Span(
+                    "Submit",
+                    id="submit_new_option",
+                    n_clicks=0,
+                    className="button button--primary add"
+                    ),
+
+                html.P(children = 'this is not fun', id='missing_warning', 
+                    style={'display':'none', 'color':'red'})
+            ],
+            className="modal-content",
+            style={"textAlign": "center"},
+            )
             ],
             className="modal",
-        ),
-        id="leads_modal",
+            ),
+        id="option_modal",
         style={"display": "none"},
     )
 
 
 layout = [
-
     # top controls
     html.Div(
-        [
-            html.Div(
-                dcc.Dropdown(
-                    id="converted_leads_dropdown",
-                    options=[
-                        {"label": "By day", "value": "D"},
-                        {"label": "By week", "value": "W-MON"},
-                        {"label": "By month", "value": "M"},
-                    ],
-                    value="D",
-                    clearable=False,
-                ),
-                className="two columns",
-            ),
-            html.Div(
-                dcc.Dropdown(
-                    id="lead_source_dropdown",
-                    options=[
-                        {"label": "All status", "value": "all"},
-                        {"label": "Open leads", "value": "open"},
-                        {"label": "Converted leads", "value": "converted"},
-                        {"label": "Lost leads", "value": "lost"},
-                    ],
-                    value="all",
-                    clearable=False,
-                ),
-                className="two columns",
-            ),
+        [dcc.DatePickerRange(
+            id="spot_price",
+            start_date_placeholder_text='Choose your spot date',
+            end_date_placeholder_text='Choose your strike date',
+            display_format='MMM Do, YYYY',
+            clearable=False, className="four columns"
+        ),
 
-            # add button
-            html.Div(
-                html.Span(
-                    "Add new",
-                    id="new_lead",
-                    n_clicks=0,
-                    className="button button--primary",
-                    style={
-                        "height": "34",
-                        "background": "#119DFF",
-                        "border": "1px solid #119DFF",
-                        "color": "white",
-                    },
-                ),
-                className="two columns",
-                style={"float": "right"},
-            ),
-        ],
+         dcc.RadioItems(options=[
+             {'label': 'Euroption Option', 'value': 'EurOption'},
+            {'label': 'American Option', 'value': 'AmeOption'},
+            {'label': 'Barrier Option', 'value': 'BarOption'}], value='EurOption',
+            className='six columns',
+            labelStyle={'display': 'inline-block', 'color': 'white', 'fontSize': '20px',
+                    'margin-right': '20px'}),
+
+            html.Div(html.Span(
+                "Add New Underlying Asset",
+                id="new_underlying",
+                n_clicks=0,
+                className="button button--primary add",
+                style={"float": "right", 'width': 'auto'},
+                ), className="two columns")],
         className="row",
-        style={"marginBottom": "10"},
-    ),
+        style={"marginBottom": "10", "padding-bottom": "10px"}),
 
-    # indicators row div
     html.Div(
         [
-            indicator(
-                "#00cc96", "Converted Leads", "left_leads_indicator"
-            ),
-            indicator(
-                "#119DFF", "Open Leads", "middle_leads_indicator"
-            ),
-            indicator(
-                "#EF553B",
-                "Conversion Rates",
-                "right_leads_indicator",
-            ),
-        ],
-        className="row",
+            # dcc.Input(id="int_rate", placeholder='Risk-free Interest rate'),
+                    # dcc.Input()
+                    # dcc.Dropdown(id='')
+            ],
     ),
 
+    # add button
+
+
+    # indicators row
+    html.Div(
+        [dcc.Dropdown(id='underlying_pool',
+                      options=[{'label': 'Test', 'value': 'Test'},
+                               {'label': 'Test2', 'value': 'Test2'}],
+                      value=[],
+                      placeholder='Your Underlying Pool', multi=True, className="ten columns"),
+         html.Button(children='Clear All Stocks', id='clear', n_clicks=0,
+                     className='two columns'),
+         dcc.Input(id='clear_all', value=0, style={'display': 'None'}),
+         ],
+        className="row",
+    ),
+    html.Div([html.P('Correlation Structure', className='title'),
+        html.Div(
+            [
+             dash_table.DataTable(
+                id='corr_matrix',
+                columns=[{'id': 'Ticker', 'name': ' Asset Name', 'editable': False},
+                         {'id': 'Test', 'name': 'Test'}],
+                data=[{'Ticker': 'Test', 'Test': 1.0}],
+                editable=True,
+            )], className='seven columns'
+            ),
+        html.Div([
+            dcc.Graph(id= 'heat-map')
+        ], className='five columns'
+        )
+    ], className='row'),
     # charts row div
+    html.Div([
+        html.P("Asset List", className='title'),
+        dash_table.DataTable(
+                id='asset_info',
+                columns=[{'name': 'Name', 'id':'Name'},
+                        {'name': 'Spot Price', 'id':'spot'},
+                        {'name': 'Interest Rate', 'id':'int_rate'},
+                        {'name': 'Volatiltiy', 'id':'volatility'},
+                        {'name': 'Dividend', 'id':'dividend'}
+                        ],
+                row_deletable=True,
+                data=[],
+             )
+    ], className='row'),
+
     html.Div(
-        [
-            html.Div(
-                [
-                    html.P("Leads count per state"),
-                    dcc.Graph(
-                        id="map",
-                        style={"height": "90%", "width": "98%"},
-                        config=dict(displayModeBar=False),
-                    ),
-                ],
-                className="four columns chart_div"
-            ),
-
-            html.Div(
-                [
-                    html.P("Leads by source"),
-                    dcc.Graph(
-                        id="lead_source",
-                        style={"height": "90%", "width": "98%"},
-                        config=dict(displayModeBar=False),
-                    ),
-                ],
-                className="four columns chart_div"
-            ),
-
-            html.Div(
-                [
-                    html.P("Converted Leads count"),
-                    dcc.Graph(
-                        id="converted_leads",
-                        style={"height": "90%", "width": "98%"},
-                        config=dict(displayModeBar=False),
-                    ),
-                ],
-                className="four columns chart_div"
-            ),
-        ],
-        className="row",
-        style={"marginTop": "5"},
-    ),
-
-    # table div
+        [html.P("The Fair Option Price", className='title'),
+         dcc.Graph(id='oprice-graph', style={"height": "100vh", "width": "98%"},
+                   className="ten columns"),
+         ],
+        className='row'),
+    html.Div([html.Div([
+        html.P('Your OHLC Diagram'),
+        dcc.Graph(id='stock-ohlc', style={"height": "90vh", "width": "98%"},
+                  className="ten columns"),
+    ], className='six columns'),
+        html.Div([
+            html.P('Your Candlestick Diagram'),
+            dcc.Graph(id='stock-candlestick', style={"height": "90vh", "width": "98%"},
+                      className="ten columns")
+        ], className='six columns')], className='row'),
+    # tables row div
     html.Div(
-        id="leads_table",
+        [modal()],
         className="row",
-        style={
-            "maxHeight": "350px",
-            "overflowY": "scroll",
-            "padding": "8",
-            "marginTop": "5",
-            "backgroundColor": "white",
-            "border": "1px solid #C8D4E3",
-            "borderRadius": "3px"
-        },
+        style={"marginTop": "5px", "max height": "200px"},
     ),
-
-
-    modal(),
 ]
 
 
-# updates left indicator based on df updates
+@app.callback([Output('corr_matrix', 'columns'),
+               Output('corr_matrix', 'data')],
+              [Input('underlying_pool', 'value'),
+               Input('corr_matrix', 'data_timestamp')],
+              [State('corr_matrix', 'data'),
+     State('corr_matrix', 'data_previous')])
+def update_corr_matrix(tickers, timestamp, data, data_prev):
+    '''
+    Inspired by https://stackoverflow.com/questions/26033301/
+    Workaround here is very nasty. Any elegant solution is welcome.
+    '''
+    # check if there is a change in columns:
+    try:
+        secret_df = pd.DataFrame(data).set_index('Ticker')
+        if set(tickers) != set(secret_df.columns):
+            secret_df.sort_index(axis=0, inplace=True)
+            secret_df.sort_index(axis=1, inplace=True)
+            if set(secret_df.columns) - set(tickers):  # if remove tickers
+                secret_df = secret_df.loc[tickers, tickers]
+            elif set(tickers) - set(secret_df.columns):  # if add tickers
+                new_ticker = (set(tickers) - set(secret_df.columns)).pop()
+                secret_df.loc[new_ticker, new_ticker] = 1.0
+        elif data != data_prev and data_prev:
+            changed, unchanged = [[x, y] for x,y in zip(data, data_prev) if x != y][0]
+            item_changed = (set(changed.items()) - \
+                            set(unchanged.items())).pop()
+            item_changed[1]
+            i, j = changed['Ticker'], item_changed[0]
+            if i == j:
+                secret_df.at[i, j] = 1.0
+            else:
+                try:
+                    if float(item_changed[1]) > 1 or float(item_changed[1]) < -1:
+                        secret_df.at[i, j] = secret_df.at[j, i]
+                    else:
+                        secret_df.at[j, i] = secret_df.at[i, j]
+                except ValueError:
+                    secret_df.at[i, j] = secret_df.at[j, i]
+
+            
+    except KeyError:
+        secret_df = pd.DataFrame(1, index=tickers, columns= tickers)
+        secret_df.index.name = 'Ticker'
+    finally:
+        secret_df.reset_index(inplace=True)
+        columns = [{'label': ticker, 'id': ticker} for ticker in secret_df.columns]
+        columns[0]['editable'] = False
+        data = secret_df.to_dict('records')
+    return columns, data
+
 @app.callback(
-    Output("left_leads_indicator", "children"), [Input("leads_df", "children")]
-)
-def left_leads_indicator_callback(df):
-    df = pd.read_json(df, orient="split")
-    converted_leads = len(df[df["Status"] == "Closed - Converted"].index)
-    return converted_leads
+    Output('heat-map', 'figure'),
+    [Input('corr_matrix', 'data'),
+     Input('corr_matrix', 'columns')])
+def display_output(rows, columns):
+    return {
+        'data': [{
+            'type': 'heatmap',
+            'z': [[row.get(c['id'], None) for c in columns[1:]] for row in rows],
+            'x': [c['id'] for c in columns[1:]],
+            'colorscale':'Viridis'
+        }]
+    }
 
 
-# updates middle indicator based on df updates
 @app.callback(
-    Output("middle_leads_indicator", "children"), [
-        Input("leads_df", "children")]
+    [Output("option_modal_close", 'n_clicks'), Output('missing_warning', 'children'),
+    Output('missing_warning', 'style'), Output('asset_info', 'data')],
+    [Input("submit_new_option", "n_clicks")],
+    [State('asset_name', 'value'),
+    State('spot', 'value'), State('int_rate', 'value'),
+    State('volatility', 'value'), State('dividend', 'value'), 
+    State('missing_warning', 'style'),
+    State('underlying_pool', 'options'), State('asset_info', 'data')]
 )
-def middle_leads_indicator_callback(df):
-    df = pd.read_json(df, orient="split")
-    open_leads = len(
-        df[
-            (df["Status"] == "Open - Not Contacted")
-            | (df["Status"] == "Working - Contacted")
-        ].index
-    )
-    return open_leads
+def check_validity(n, name, spot, int_rate, vol, div, style, options, data):
+    message = ''
+    if not name:
+        message = 'Enter asset name'
+    elif name in [set(option.values()).pop() for option in options]:
+        message = 'Asset with same name already exists. Try another one'
+    elif not spot or spot < 0:
+        message = 'Spot must not be empty or negative'
+    elif vol < 0:
+        message = f'{vol} is not valid. Volatility must be positive'
+    elif div < 0 or div > 100:
+        message = f'{div} is not valid. Dividend must be positive and smaller than 1'
+    
+    if message:
+        style['display']='block'
+        return 0, message, style, data
+    else:
+        data.append({'Name': name, 'spot': spot, 'int_rate': int_rate, 
+                    'volatility': vol, 'dividend':div})
+        return 1, message, style, data
 
 
-# updates right indicator based on df updates
-@app.callback(
-    Output("right_leads_indicator", "children"), [
-        Input("leads_df", "children")]
-)
-def right_leads_indicator_callback(df):
-    df = pd.read_json(df, orient="split")
-    converted_leads = len(df[df["Status"] == "Closed - Converted"].index)
-    lost_leads = len(df[df["Status"] == "Closed - Not Converted"].index)
-    conversion_rates = converted_leads / (converted_leads + lost_leads) * 100
-    conversion_rates = "%.2f" % conversion_rates + "%"
-    return conversion_rates
-
-
-# update pie chart figure based on dropdown's value and df updates
-@app.callback(
-    Output("lead_source", "figure"),
-    [Input("lead_source_dropdown", "value"), Input("leads_df", "children")],
-)
-def lead_source_callback(status, df):
-    df = pd.read_json(df, orient="split")
-    return lead_source(status, df)
-
-
-# update heat map figure based on dropdown's value and df updates
-@app.callback(
-    Output("map", "figure"),
-    [Input("lead_source_dropdown", "value"), Input("leads_df", "children")],
-)
-def map_callback(status, df):
-    df = pd.read_json(df, orient="split")
-    return choropleth_map(status, df)
-
-
-# update table based on dropdown's value and df updates
-@app.callback(
-    Output("leads_table", "children"),
-    [Input("lead_source_dropdown", "value"), Input("leads_df", "children")],
-)
-def leads_table_callback(status, df):
-    df = pd.read_json(df, orient="split")
-    if status == "open":
-        df = df[
-            (df["Status"] == "Open - Not Contacted")
-            | (df["Status"] == "Working - Contacted")
-        ]
-    elif status == "converted":
-        df = df[df["Status"] == "Closed - Converted"]
-    elif status == "lost":
-        df = df[df["Status"] == "Closed - Not Converted"]
-    df = df[["CreatedDate", "Status", "Company", "State", "LeadSource"]]
-    return df_to_table(df)
-
-
-# update pie chart figure based on dropdown's value and df updates
-@app.callback(
-    Output("converted_leads", "figure"),
-    [Input("converted_leads_dropdown", "value"),
-     Input("leads_df", "children")],
-)
-def converted_leads_callback(period, df):
-    df = pd.read_json(df, orient="split")
-    return converted_leads_count(period, df)
-
-
-# hide/show modal
-@app.callback(Output("leads_modal", "style"), [Input("new_lead", "n_clicks")])
-def display_leads_modal_callback(n):
-    if n > 0:
-        return {"display": "block"}
-    return {"display": "none"}
-
+@app.callback([Output('underlying_pool', 'value'), Output('underlying_pool', 'options'),
+               Output('clear_all', 'value')],
+              [Input('asset_info', 'data'), Input('clear', 'n_clicks')],
+              [State('clear_all', 'value')])
+def update_ticker(data, clear_btn, state):
+    # new_ticker = str.upper("".join(new_ticker.split()))
+    if int(clear_btn) != state:
+        return [], [], int(clear_btn)
+    else:
+        nameLst = [row['Name'] for row in data]
+        options = [{'label': name, 'value': name} for name in nameLst]
+        return nameLst, options, state
 
 # reset to 0 add button n_clicks property
 @app.callback(
-    Output("new_lead", "n_clicks"),
-    [Input("leads_modal_close", "n_clicks"),
-     Input("submit_new_lead", "n_clicks")],
+    Output("new_underlying", "n_clicks"),
+    [Input("option_modal_close", "n_clicks")],
 )
-def close_modal_callback(n, n2):
-    return 0
+def close_modal_callback(n):
+    if n > 0:
+        return 0
 
-
-# add new lead to salesforce and stores new df in hidden div
 @app.callback(
-    Output("leads_df", "children"),
-    [Input("submit_new_lead", "n_clicks")],
-    [
-        State("new_lead_status", "value"),
-        State("new_lead_state", "value"),
-        State("new_lead_company", "value"),
-        State("new_lead_source", "value"),
-        State("leads_df", "children"),
-    ],
+    Output("option_modal", "style"), [Input("new_underlying", "n_clicks")]
 )
-def add_lead_callback(n_clicks, status, state, company, source, current_df):
-    if n_clicks > 0:
-        if company == "":
-            company = "Not named yet"
-        query = {
-            "LastName": company,
-            "Company": company,
-            "Status": status,
-            "State": state,
-            "LeadSource": source,
-        }
-        # sf_manager.add_lead(query)
-        # df = sf_manager.get_leads()
-        return df.to_json(orient="split")
+def display_stock_modal_callback(n):
+    try:
+        if n > 0:
+            return {"display": "block"}
+        else:
+            return {"display": "none"}
+    except TypeError:
+        raise PreventUpdate
 
-    return current_df
+# Input("submit_new_option", "n_clicks")

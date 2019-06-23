@@ -1,7 +1,7 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: steelblue;
+  background-color: rosybrown;
   font-family: "Open Sans", sans-serif;
   color: #506784;
   -webkit-user-select: none; /* Chrome all / Safari all */
@@ -9,7 +9,6 @@ body {
   -ms-user-select: none; /* IE 10+ */
   user-select: none; /* Likely future */
 }
-
 .modal {
   display: block; /*Hidden by default */
   position: fixed; /* Stay in place */
@@ -29,6 +28,26 @@ body {
   width: 50%; /* Could be more or less, depending on screen size */
   color: #506784;
 }
+.modal-content div p {
+  color: #2a3f5f;
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 0;
+}
+.title {
+  font-size: 30px;
+  text-align: center;
+  text-shadow: 2px 2px 4px whitesmoke;
+}
+.modal-content div input {
+  padding: 0px 13px 5px 13px;
+  margin-bottom: 5;
+}
+.modal-content div {
+  padding: 0px 13px 5px 13px;
+  margin-bottom: 5;
+}
+
 ._dash-undo-redo {
   display: none;
 }

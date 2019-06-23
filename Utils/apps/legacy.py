@@ -274,3 +274,19 @@ layout = [
 
     modal(),
 ]
+
+if focus and focus['column'] != 0:
+            i, j = secret_df.index[focus['row']], focus['column_id']
+            if secret_df.at[i, j] != secret_df.at[j, i]:
+                if float(secret_df.at[i, j]) > 1 or float(secret_df.at[i, j]) < -1:
+                    secret_df.at[i, j] = secret_df.at[j, i]
+                else:
+                    secret_df.at[j, i] = secret_df.at[i, j]
+        else:
+            secret_df.sort_index(axis=0, inplace=True)
+            secret_df.sort_index(axis=1, inplace=True)
+            if set(secret_df.columns) - set(tickers): # if remove tickers
+                secret_df = secret_df.loc[tickers, tickers]
+            elif set(tickers) - set(secret_df.columns): # if add tickers
+                new_ticker = (set(tickers) - set(secret_df.columns)).pop()
+                secret_df.loc[new_ticker, new_ticker] = 1.0

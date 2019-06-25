@@ -1,0 +1,144 @@
+@import url("https://fonts.googleapis.com/css?family=Lato|ZCOOL+KuaiLe&display=swap");
+
+/* * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+} */
+
+/* body {
+  font-family: "Lato", sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  background-image: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  min-height: 100vh;
+} */
+
+/* .main {
+  text-align: center;
+  width: 90%;
+  opacity: 0;
+  display: none;
+  transition: opacity 1s ease-in;
+} */
+
+/* .main h1 {
+  font-size: 50px;
+  margin-bottom: 10px;
+}
+
+.main p {
+  font-size: 25px;
+  color: #333;
+} */
+
+/* .btn {
+  display: inline-block;
+  background: purple;
+  color: #fff;
+  text-decoration: none;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 20px;
+  margin-top: 15px;
+}
+
+.btn:hover {
+  opacity: 0.9;
+} */
+
+/* _dash.LOADing-state 1 */
+._dash-loading {
+  height: 50px;
+  transform-origin: bottom center;
+  animation: rotate 3s linear infinite;
+}
+
+.circle {
+  display: inline-block;
+  background-color: purple;
+  height: 40px;
+  width: 40px;
+  border-radius: 50%;
+  transform: scale(0);
+  animation: grow 1.5s linear infinite;
+  margin: -10px;
+}
+
+.circle:nth-child(2) {
+  background-color: palevioletred;
+  animation-delay: 0.75s;
+}
+
+@keyframes rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes grow {
+  50% {
+    transform: scale(1);
+  }
+}
+
+/* _dash.LOADing-state 2 */
+/* ._dash-loading {
+  font-family: 'ZCOOL KuaiLe', cursive;
+  font-size: 40px;
+  color: palevioletred;
+}
+
+._dash-loading::after {
+  content: '\2026';
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  animation: dots steps(4, end) 2s infinite;
+  width: 0px;
+}
+
+@keyframes dots {
+  to {
+    width: 1.25em;
+  }
+} */
+
+/* _dash.LOADing-state 3 */
+/* ._dash-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+._dash-loading > span {
+  display: inline-block;
+  background-color: purple;
+  width: 0px;
+  height: 0px;
+  border-radius: 50%;
+  margin: 0 8px;
+  transform: translate3d(0);
+  animation: bounce 0.6s infinite alternate;
+}
+
+._dash-loading > span:nth-child(2) {
+  background-color: palevioletred;
+  animation-delay: 0.2s;
+}
+
+._dash-loading > span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes bounce {
+  to {
+    width: 16px;
+    height: 16px;
+    transform: translate3d(0, -16px, 0);
+  }
+} */

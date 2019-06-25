@@ -55,4 +55,8 @@ def plot(options, solvers, Msolvers, with_cursor=False):
     plt.gcf()
 
 
-plot([b1, c], [], [ASolver, ABSolver])
+# plot([b1, c], [], [ASolver, ABSolver])
+print(solver.asset_samples.flatten(), price[:, 0])
+
+
+# %%

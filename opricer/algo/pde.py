@@ -6,7 +6,7 @@ from scipy.sparse import diags
 from opricer.model import models
 from opricer.tools.mathtool import force_broadcast, back_quad
 from functools import partial
-import analytics
+from . import analytics
 
 
 class EurSolver(analytics.AnalyticSolver):

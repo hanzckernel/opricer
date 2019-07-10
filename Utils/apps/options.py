@@ -28,87 +28,86 @@ def modal():
     return html.Div(
         html.Div([html.Div([
             # modal header
-                html.Div(
-                    [
-                    html.Span(
-                        "New Option",
-                        style={
-                            "color": "#506784",
-                            "fontWeight": "bold",
-                            "fontSize": "20",
-                        },
-                    ),
-                    html.Span(
-                        "x",
-                        id="option_modal_close",
-                        n_clicks=0,
-                        style={
-                            "float": "right",
-                            "cursor": "pointer",
-                            "marginTop": "0",
-                            "marginBottom": "17",
-                        },
-                    ),
-                ],
-                    className="row",
-                    style={"borderBottom": "1px solid #C8D4E3"},
-                    ),
+            html.Div(
+                [
+                html.Span("New Option"),
+                html.Span(
+                    "X",
+                    id="option_modal_close",
+                    n_clicks=0,
+                    style={
+                        "float": "right",
+                        "cursor": "pointer",
+                        "marginTop": "0",
+                        "marginBottom": "17",
+                    },
+                ),
+                html.Div(className="divider")
+            ], className="caption",
+                ),
 
 
             # modal form
+            html.Div(
                 html.Div([
-                    html.P('Name of Asset'),
+                html.Div([
+                    dcc.Input(id='asset_name', type='text', 
+                    # placeholder="input asset name",
+                                className='validate'),
+                    html.Label("Name of Asset", htmlFor='asset_name'),
+                ], className="input-field col s12 m6"),
 
-                    dcc.Input(id="asset_name", type='text',
-                    placeholder='Asset Name'),
+                html.Div([
+                    dcc.Input(id='spot', type='number', step=0.01,
+                        # placeholder="choose spot price",
+                            min=0.01,
+                                className='validate'),
+                    html.Label("Spot Price", htmlFor='spot'),
+                ], className="input-field col s12 m6"),
 
-                    html.P("Spot Price"),
+                html.Div([
+                    dcc.Input(id='int_rate', type='number', value=0, step=0.001,
+                        # placeholder="choose risk-free rate of asset",
+                        className='validate'),
+                    html.Label("Risk-free interest rate (%)", htmlFor='int_rate'),
+                ], className="input-field col s12 m6"),
 
-                    dcc.Input(id="spot", type='number',
-                    step=10, min= 0,
-                    placeholder='Spot Price'),
+                html.Div([
+                    dcc.Input(id='volatility', type='number', step=0.001,
+                        min = 0, 
+                        # placeholder="input volatility of asset",
+                        className='validate'),
+                    html.Label("Volatility (%)", htmlFor='volatility'),
+                ], className="input-field col s12 m6"),
 
-                    html.P("Risk-free interest rate (%)"),
-
-                    dcc.Input(id="int_rate", type='number',
-                    value = 0,
-                    placeholder='Risk-free rate'),
-
-                    html.P("Volatility (%)"),
-
-                    dcc.Input(id="volatility", type='number',
-                    step=0.5, min= 0,
-                    placeholder='Volatility'),
-
-                    html.P("Dividend (%)"),
-
-                    dcc.Input(
-                    id="dividend", type='number',
-                    step=0.5, min= 0, value=0,
-                    placeholder='Dividend',
-                ),
-                ],
-                    className="row",
-                    style={"paddingTop": "2%"},
-                    ),
+                html.Div([
+                    dcc.Input(id='dividend', type='number', step=0.001,
+                        min = 0, placeholder="input dividend of asset",
+                        value = 0, className='validate'),
+                    html.Label("Dividend (%)", htmlFor='dividend'),
+                ], className="input-field col s12 m6"),
+            ], className='container'),
+            className='row'
+            ),
 
             # submit button
-                html.Button(
-                    "Submit",
-                    id="submit_new_option",
-                    type='submit',
-                    n_clicks=0,
-                    className="button button--primary add"
-                    ),
+                
 
-                html.P(children = 'this is not fun', id='missing_warning', 
-                    style={'display':'none', 'color':'red'})
-            ],
-            className="modal-content",
-            style={"textAlign": "center"},
+            html.Div(
+                [
+                html.Button(
+                "Submit",
+                id="submit_new_option",
+                type='submit',
+                n_clicks=0,
+                className="btn waves-effect waves-light center-align"
+                ),
+                html.Span(id='missing_warning', style={'display':'none', 'color':'red'})
+                ], className='modal-footer'
+            )], className="modal-content center-align",
             )
             ],
-            className="modal",
+            className="custom-modal",
             ),
         id="option_modal",
         style={"display": "none"},
@@ -116,131 +115,165 @@ def modal():
 
 
 layout = [
-    # top controls
+    #first row 
+
     html.Div(
-        [html.Div(
-            [dcc.DatePickerRange(
+        [
+        html.Div(
+        [
+            html.H3("Property Block", className='title'),
+            html.Div(html.Button(
+                    "Add New Underlying Asset",
+                    id="new_underlying",
+                    n_clicks=0,
+                    className="waves-effect waves-light btn",
+                ), className="col s12"),
+            html.Div(className='divider col s12', style={"margin": "1.5rem 0"}),
+            html.P("Dates of Speculation", className="title"),
+                dcc.DatePickerRange(
                 id="spot_date",
                 start_date_placeholder_text='Choose your spot date',
                 end_date_placeholder_text='Choose your strike date',
                 display_format='MMM Do, YYYY',
-                clearable=False, className="row",
+                clearable=True,
                 start_date='2015-1-1',
                 end_date='2016-1-1',
-            ),
-
+                show_outside_days=True,
+                ),
+            html.Div([
+                html.P("Type of Option", className='title'),
                 dcc.RadioItems(id='ocate', options=[
-                    {'label': 'Euroption Option', 'value': 'EurOption'},
+                    {'label': 'European Option', 'value': 'EurOption'},
                     {'label': 'American Option', 'value': 'AmeOption'},
                     {'label': 'Barrier Option', 'value': 'BarOption'}], value='EurOption',
-                className="row",
-                labelStyle={'display': 'inline-block', 'color': 'white', 'fontSize': '20px',
-                            'margin-right': '20px'}),
+                    className="custom-gap custom-radio", style={"float":"right"}
+                    ),
+            ], className="col s12"),
+            
+            html.Div([
+                html.P("Choice of Call / Put", className='title'),
                 dcc.RadioItems(id='otype', options=[
-                    {'label': 'Call Option', 'value':'call'},
-                    {'label': 'Put Option', 'value':'put'}
-                    ], value='call', className="row",
-                labelStyle={'display': 'inline-block', 'color': 'white', 'fontSize': '20px',
-                            'margin-right': '20px'},
-                ),
-                dcc.Input(id='strike', value=100, type='number'),
-
-                ],
-            className="six columns",
-            style={"marginBottom": "10", "padding-bottom": "10px"}),
-
-         html.Div(
+                {'label': 'Call Option', 'value':'call'},
+                {'label': 'Put Option', 'value':'put'}
+                ], value='call', className="custom-gap custom-radio",
+                ), 
+            ], className="col s12"),
+            
+            html.Div([
+                    dcc.Input(id='strike', type='number', step=0.001, min = 0.01,
+                        value = 0, className='validate'),
+                    html.Label("Strike Price", htmlFor='strike'),
+                ], className="input-field col s12", style={"color":"white"}),
+        ], className="col s12 m12 l3 center-align"
+    ),
+    # top controls
+    html.Div(
+        [
+        html.Div(
             [
-                html.Div(html.Span(
-                    "Add New Underlying Asset",
-                    id="new_underlying",
-                    n_clicks=0,
-                    className="button button--primary add",
-                    style={"float": "right", 'width': 'auto'},
-                ), className="row"),
-                dcc.Dropdown(id='underlying_pool',
+            html.P('Correlation Heatmap', className='title'),
+            dcc.Graph(id='heat-map', figure={'layout': go.Layout(
+            paper_bgcolor='rgba(255, 255, 255, 0.5)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin={'t':40},
+            )}, style={"height":"80vh"}
+            )], 
+            className = "col s12 m12 l6"
+        ),
+        html.Div([
+        html.P("Watched Correlation Structure", className='title'),
+        dcc.Dropdown(id='underlying_pool',
                              options=[],
                              value=[],
-                             placeholder='Your Underlying Pool', multi=True, className="row"),
-                html.Button('Clear All Stocks', id='option-clear', n_clicks=0,
-                            className="row"),
-                dcc.Input(id='clear_all', value=0, style={'display': 'none'}),
-            ], className='six columns'
-        ),
-
-         ], className="row"
-    ),
-
-    # add button
-
-
-    # indicators row
-    html.Div([
-        html.Div([
-            html.P("Asset List", className='title'),
-                    dash_table.DataTable(
-                        id='asset_info',
-                        columns=[{'name': 'Name', 'id': 'Name', 'editable': False},
-                                 {'name': 'Spot Price', 'id': 'spot', 'type': 'numeric',
-                                "format":FormatTemplate.money(2)},
-                                 {'name': 'Interest Rate', 'id': 'int_rate', 'type': 'numeric',
-                                "format":FormatTemplate.percentage(2)},
-                                 {'name': 'Volatiltiy', 'id': 'volatility', 'type': 'numeric',
-                                 "format":FormatTemplate.percentage(2)},
-                                 {'name': 'Dividend', 'id': 'dividend', 'type': 'numeric',
-                                 "format":FormatTemplate.percentage(2)}
-                                 ],
-                        style_table={'maxHeight': '200px', 'overflowY': 'scroll',
-                        'height':'200px'},
-                        row_deletable=True,
-                        editable=True,
-                        data=[],
-                    ),
-            html.P('Correlation Structure', className='title'),
-            html.Div(
-                [
-                    dash_table.DataTable(
+                             placeholder='Your Underlying Pool', multi=True,
+                            className="col s12",
+                            style={"margin-bottom": "1rem"}),
+        html.Button('Clear All Stocks', id='option-clear', n_clicks=0,
+                    className="btn waves-effect blue waves-light"),
+        dcc.Input(id='clear_all', value=0, style={'display': 'none'}),
+        html.P("Correlation Structure", className='title'),
+        dash_table.DataTable(
                         id='corr_matrix',
                         columns=[{'id': 'Ticker', 'name': ' Asset Name', 'editable': False},
                                  {'id': 'Test', 'name': 'Test'}],
                         data=[{'Ticker': 'Test', 'Test': 1.0}],
                         editable=True,
-                        style_table={'maxHeight': '200px', 'overflowY': 'scroll',
-                        'height': '200px'},
+                        style_table={'maxHeight': '60vh', 'overflowY': 'scroll',
+                                    'height':'60vh', 'padding':'0 1rem'},
+                        style_cell={"maxWidth":"1rem", 'fontFamily': 'Arial',
+                        "fontWeight":"300", "filter": "brightness(125%)",
+                        'backgroundColor':'rgba(255, 255, 255, 0.2)'},
+                        css=[{"selector": "tr", "rule": 'background-color:rgba(255, 255, 255, 0.2)'}]
                     ),
-                ], className="row", style={"row-gap": "200px"}
-            )
-        ],
-            className='six columns'
+        ], 
+        className="col s12 m12 l6"
         ),
-        html.Div([
-            html.P('Correlation Heatmap', className='title'),
-            dcc.Graph(id='heat-map'),
-        ],
-            className='six columns'),
-    ], className="row"),
-    # charts row div
-    html.Button('confirm', id='confirm', n_clicks=0, className="row", style={}),
-    html.Div(
-        [html.P("The Fair Option Price", className='title'),
-         dcc.Graph(id='opricer_graph', style={"height": "100vh", "width": "98%"}),
-        html.Div('this is test', id='test',),
-         ],
-        className="row"),
-    html.Div([html.Div([
-        html.P('Your OHLC Diagram'),
-        dcc.Graph(id='stock-ohlc', style={"height": "90vh", "width": "98%"}),
-    ], className='six columns'),
-        html.Div([
-            html.P('Your Candlestick Diagram'),
-            dcc.Graph(id='stock-candlestick', style={"height": "90vh", "width": "98%"})
-        ], className='six columns')], className="row"),
-    # tables row div
-    html.Div(
-        [modal()],
-        className="row",
-        style={"marginTop": "5px", "max height": "200px"},
+         ], className="col s12 m12 l9 center-align"
     ),
+        ], className='row'
+    ),
+
+    #second row
+
+    html.Div([
+        html.Button('Compute Price!', id='confirm', n_clicks=0, 
+            className="btn btn-large red waves-effect waves-light"),
+        dcc.ConfirmDialog(message='Are you ready to compute the price? It might take a while..',
+             id='true-confirm'),
+            ],
+             className='row center-align'),
+    
+
+    html.Div(
+        [
+        html.Div(
+            [
+            html.H3("Asset List", className='title'),
+            dash_table.DataTable(
+                id='asset_info',
+                columns=[{'name': 'Name', 'id': 'Name', 'editable': False},
+                            {'name': 'Spot Price', 'id': 'spot', 'type': 'numeric',
+                        "format":FormatTemplate.money(2)},
+                            {'name': 'Interest Rate', 'id': 'int_rate', 'type': 'numeric',
+                        "format":FormatTemplate.percentage(2)},
+                            {'name': 'Volatiltiy', 'id': 'volatility', 'type': 'numeric',
+                            "format":FormatTemplate.percentage(2)},
+                            {'name': 'Dividend', 'id': 'dividend', 'type': 'numeric',
+                            "format":FormatTemplate.percentage(2)}
+                            ],
+                style_table={'maxHeight': '80vh', 'overflowY': 'scroll', "height":"80vh",
+                            'padding':'0 1rem'},
+                style_cell={"maxWidth":"1rem", 'fontFamily': 'Arial',
+                        "fontWeight":"300", "filter": "brightness(125%)",
+                        'backgroundColor':'rgba(255, 255, 255, 0.2)'},
+                css=[{"selector": "tr", "rule": 'background-color:rgba(255, 255, 255, 0.2)'}],
+                row_deletable=True,
+                editable=True,
+                data=[],
+            ),
+            ], className="col s12 m12 l5"
+        ),
+
+    #second row right-hand
+    html.Div([
+    html.H3("The Fair Option Price", className='title'),
+    dcc.Graph(
+        figure={
+            "layout":go.Layout(
+            hovermode='closest',
+            paper_bgcolor='rgba(255, 255, 255, 0.5)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin={'t':20, 'l':20, 'b':20, 'r':20},
+            )
+        },
+        id='opricer_graph', style={"height": "70vh"}),
+    # html.Div('this is test', id='test')
+    ], className="col s12 m12 l7"),
+    ], className="row center-align"
+    ),
+
+    # modal div
+    html.Div(modal()),
 ]
 
 
@@ -307,8 +340,17 @@ def display_output(rows, columns):
             'z': [[row.get(c['id'], None) for c in columns[1:]] for row in rows],
             'y': [c['id'] for c in columns[1:]],
             'x': [c['id'] for c in columns[1:]],
-            'colorscale':'Viridis'
-        }]
+            'colorscale':'Viridis',
+            'opacity':0.9,
+            "hovertemplate":'%{y} and %{x} are %{z}-correlated',
+            "hoverlabel":[{"bgcolor":"blue"}]
+        }],
+
+        'layout': go.Layout(
+            paper_bgcolor='rgba(255, 255, 255, 0.5)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin={'t':40},
+            )
     }
 
 
@@ -336,9 +378,9 @@ def check_validity(n, clear_btn, name, spot,
         elif name in [set(option.values()).pop() for option in options]:
             message = 'Asset with same name already exists. Try another one'
         elif not spot or spot < 0:
-            message = 'Spot price must not be empty or negative'
-        elif vol < 0:
-            message = f'{vol} is not valid. Volatility must be positive'
+            message = 'Spot price must not be empty nor negative'
+        elif not vol or vol < 0:
+            message = f'Volatility must not be empty nor negative'
         elif div < 0 or div > 100:
             message = f'{div} is not valid. Dividend must be positive and smaller than 1'
     
@@ -384,7 +426,7 @@ def display_stock_modal_callback(n):
 #### Here begins the Option Pricing!!! ####
 @app.callback(
     Output('opricer_graph', 'figure'),
-    [Input('confirm', 'n_clicks')],
+    [Input('true-confirm', 'submit_n_clicks')],
     [State('asset_info', 'data'), State('ocate', 'value'), State('otype', 'value'),
     State('spot_date', 'start_date'), State('spot_date', 'end_date'), State('strike', 'value')
     ]
@@ -405,7 +447,7 @@ def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
                         x=solver.asset_samples.flatten(),
                         y=solver.time_samples,
                         z=price,
-                        opacity=0.7,
+                        opacity=0.9,
                         # mode='lines',
                         # marker={'size': 5,'line': {'width': 0.5, 'color': 'white'}},
                         name='Analytic Solver',
@@ -422,10 +464,12 @@ def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
                     )
 
         graph_layout = go.Layout(
-                xaxis={'title': 'Asset'},
-                yaxis={'title': 'Price'},
-                hovermode='closest',
-
+            xaxis={'title': 'Asset'},
+            yaxis={'title': 'Price'},
+            hovermode='closest',
+            paper_bgcolor='rgba(255, 255, 255, 0.5)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin={'t':20, 'l':0, 'b':20, 'r':0, 'pad':0},
             )
         figure = {
                 'data': traces, 'layout': graph_layout
@@ -433,3 +477,9 @@ def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
         return figure
     else:
         raise PreventUpdate
+
+@app.callback(Output('true-confirm', 'displayed'), [Input('confirm', 'n_clicks')])
+def call_pop_up(n):
+    if n:
+        return True
+    return False

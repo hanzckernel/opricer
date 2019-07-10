@@ -4,6 +4,7 @@ import pandas as pd
 import flask
 import dash
 from dash.dependencies import Input, Output, State
+import dash_daq as daq
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.plotly as py
@@ -158,12 +159,6 @@ layout = [
                 ], value='call', className="custom-gap custom-radio",
                 ), 
             ], className="col s12"),
-            
-            html.Div([
-                    dcc.Input(id='strike', type='number', step=0.001, min = 0.01,
-                        value = 0, className='validate'),
-                    html.Label("Strike Price", htmlFor='strike'),
-                ], className="input-field col s12", style={"color":"white"}),
         ], className="col s12 m12 l3 center-align"
     ),
     # top controls
@@ -198,13 +193,37 @@ layout = [
                                  {'id': 'Test', 'name': 'Test'}],
                         data=[{'Ticker': 'Test', 'Test': 1.0}],
                         editable=True,
-                        style_table={'maxHeight': '60vh', 'overflowY': 'scroll',
-                                    'height':'60vh', 'padding':'0 1rem'},
+                        style_table={'maxHeight': '20vh', 'overflowY': 'scroll',
+                                    'height':'20vh', 'padding':'0 1rem'},
                         style_cell={"maxWidth":"1rem", 'fontFamily': 'Arial',
                         "fontWeight":"300", "filter": "brightness(125%)",
                         'backgroundColor':'rgba(255, 255, 255, 0.2)'},
                         css=[{"selector": "tr", "rule": 'background-color:rgba(255, 255, 255, 0.2)'}]
                     ),
+        html.P("Asset List", className='title'),
+        dash_table.DataTable(
+            id='asset_info',
+            columns=[{'name': 'Name', 'id': 'Name', 'editable': False},
+                        {'name': 'Spot Price', 'id': 'spot', 'type': 'numeric',
+                    "format":FormatTemplate.money(2)},
+                        {'name': 'Interest Rate', 'id': 'int_rate', 'type': 'numeric',
+                    "format":FormatTemplate.percentage(2)},
+                        {'name': 'Volatiltiy', 'id': 'volatility', 'type': 'numeric',
+                        "format":FormatTemplate.percentage(2)},
+                        {'name': 'Dividend', 'id': 'dividend', 'type': 'numeric',
+                        "format":FormatTemplate.percentage(2)}
+                        ],
+            style_table={'maxHeight': '20vh', 'overflowY': 'scroll', "height":"20vh",
+                        'padding':'0 1rem'},
+            style_cell={"maxWidth":"1rem", 'fontFamily': 'Arial',
+                    "fontWeight":"300", "filter": "brightness(125%)",
+                    'backgroundColor':'rgba(255, 255, 255, 0.2)'},
+            css=[{"selector": "tr", "rule": 'background-color:rgba(255, 255, 255, 0.2)'}],
+            row_deletable=True,
+            editable=True,
+            data=[],
+        ),
+            
         ], 
         className="col s12 m12 l6"
         ),
@@ -212,52 +231,34 @@ layout = [
     ),
         ], className='row'
     ),
+    html.Div(className='divider row'),
 
     #second row
 
     html.Div([
-        html.Button('Compute Price!', id='confirm', n_clicks=0, 
+        html.Div([
+                    dcc.Input(id='strike', type='number', step=0.001, min = 0.01,
+                    className='validate', style={"color":"white"}),
+                    html.Label("Strike Price", htmlFor='strike'),
+                ], className="input-field col s12 m6"),
+        html.Div([
+            html.Button('Compute Price!', id='confirm', n_clicks=0, 
             className="btn btn-large red waves-effect waves-light"),
+        ], className='col s12 m6'),
         dcc.ConfirmDialog(message='Are you ready to compute the price? It might take a while..',
              id='true-confirm'),
             ],
-             className='row center-align'),
-    
+             className='container col s12 center-align'),
 
-    html.Div(
-        [
-        html.Div(
-            [
-            html.H3("Asset List", className='title'),
-            dash_table.DataTable(
-                id='asset_info',
-                columns=[{'name': 'Name', 'id': 'Name', 'editable': False},
-                            {'name': 'Spot Price', 'id': 'spot', 'type': 'numeric',
-                        "format":FormatTemplate.money(2)},
-                            {'name': 'Interest Rate', 'id': 'int_rate', 'type': 'numeric',
-                        "format":FormatTemplate.percentage(2)},
-                            {'name': 'Volatiltiy', 'id': 'volatility', 'type': 'numeric',
-                            "format":FormatTemplate.percentage(2)},
-                            {'name': 'Dividend', 'id': 'dividend', 'type': 'numeric',
-                            "format":FormatTemplate.percentage(2)}
-                            ],
-                style_table={'maxHeight': '80vh', 'overflowY': 'scroll', "height":"80vh",
-                            'padding':'0 1rem'},
-                style_cell={"maxWidth":"1rem", 'fontFamily': 'Arial',
-                        "fontWeight":"300", "filter": "brightness(125%)",
-                        'backgroundColor':'rgba(255, 255, 255, 0.2)'},
-                css=[{"selector": "tr", "rule": 'background-color:rgba(255, 255, 255, 0.2)'}],
-                row_deletable=True,
-                editable=True,
-                data=[],
-            ),
-            ], className="col s12 m12 l5"
-        ),
+    html.Div(className='divider col s12'),
 
-    #second row right-hand
+    #third row
     html.Div([
+        html.Div([
     html.H3("The Fair Option Price", className='title'),
-    dcc.Graph(
+    daq.ToggleSwitch(id='as3d', label=['2D', '3D'], value=True, color='skyblue',
+            style={"float":'right'})],className="col s12", style={"margin-bottom":"1rem"}),
+    html.Div([dcc.Graph(
         figure={
             "layout":go.Layout(
             hovermode='closest',
@@ -266,9 +267,9 @@ layout = [
             margin={'t':20, 'l':20, 'b':20, 'r':20},
             )
         },
-        id='opricer_graph', style={"height": "70vh"}),
-    # html.Div('this is test', id='test')
-    ], className="col s12 m12 l7"),
+        id='opricer_graph', style={"height": "70vh", "width":'95vw'}),
+    dcc.Graph(id='2d_graph', style={"display":'none', "height":"70vh", 'width':'95vw'},)
+    ], className="col s12"),
     ], className="row center-align"
     ),
 
@@ -343,7 +344,6 @@ def display_output(rows, columns):
             'colorscale':'Viridis',
             'opacity':0.9,
             "hovertemplate":'%{y} and %{x} are %{z}-correlated',
-            "hoverlabel":[{"bgcolor":"blue"}]
         }],
 
         'layout': go.Layout(
@@ -423,6 +423,7 @@ def display_stock_modal_callback(n):
 
 # Input("submit_new_option", "n_clicks")
 
+
 #### Here begins the Option Pricing!!! ####
 @app.callback(
     Output('opricer_graph', 'figure'),
@@ -432,7 +433,7 @@ def display_stock_modal_callback(n):
     ]
 )
 def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
-    if data:
+    if data and strike:
         we_use = data[0]
         start = datetime.strptime(spot_date, '%Y-%m-%d')
         end = datetime.strptime(strike_date, '%Y-%m-%d')
@@ -441,45 +442,77 @@ def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
         option._attach_asset(strike, asset)
         solver = analytics.AnalyticSolver(high_val=2, low_val=0)
         price = solver(option)
-        traces= []
-        traces.append(
-            go.Surface(
+        traces=[go.Surface(
                         x=solver.asset_samples.flatten(),
-                        y=solver.time_samples,
+                        y=pd.date_range(start, end, solver.time_no).strftime('%Y-%m-%d, %r'),
                         z=price,
                         opacity=0.9,
-                        # mode='lines',
-                        # marker={'size': 5,'line': {'width': 0.5, 'color': 'white'}},
                         name='Analytic Solver',
-                        colorscale='Viridis'
-                    )
-            # go.Scatter(x=solver.asset_samples.flatten(),
-            #             # y=solver.time_samples,
-            #             y=price[:, -1],
-            #             opacity=0.7,
-            #             mode='lines',
-            #             # marker={'size': 5,'line': {'width': 0.5, 'color': 'white'}},
-            #             name='Analytic Solver',
-            #             )
-                    )
+                        colorscale='Viridis',
+                        hovertemplate='Spot Price: %{x}<br>Time: %{y}<br>Option Worth: %{z}',
+                    )]
+            
 
         graph_layout = go.Layout(
-            xaxis={'title': 'Asset'},
-            yaxis={'title': 'Price'},
+            scene=dict(xaxis={'title': 'Asset'},
+            yaxis={'title': 'Date', 
+            'showticklabels':False},
+            zaxis={'title':'Fair Price'}),
             hovermode='closest',
             paper_bgcolor='rgba(255, 255, 255, 0.5)',
             plot_bgcolor='rgba(0,0,0,0)',
-            margin={'t':20, 'l':0, 'b':20, 'r':0, 'pad':0},
+            margin={'t':0, 'l':0, 'b':20, 'r':0, 'pad':0},
             )
         figure = {
                 'data': traces, 'layout': graph_layout
             }
+        del asset, option, solver
         return figure
     else:
         raise PreventUpdate
 
-@app.callback(Output('true-confirm', 'displayed'), [Input('confirm', 'n_clicks')])
-def call_pop_up(n):
+@app.callback(
+            [Output('opricer_graph', 'style'),
+            Output('2d_graph', 'figure'),Output('2d_graph', 'style')],
+            [Input('as3d', 'value')],
+            [State('opricer_graph', 'figure'), State('opricer_graph', 'style'),
+            State('2d_graph', 'style') ])
+def change2d(as3d, fig3d, style3d, style2d):
+    if as3d:
+        style3d['display']="block"
+        style2d['display']='none'
+        return style3d, {}, style2d
+    else:
+        try:
+            scatter = fig3d['data'][0]
+            x = scatter['x']
+            y = scatter['z'][-1]
+            figure= {
+                "data": [go.Scatter(x=x, y=y, mode='lines', name='Analytic Solver')],
+                "layout": go.Layout(
+                xaxis={'title':'Spot Price at End Time'},
+                yaxis={'title':"Option Price"},
+                hovermode='closest',
+                paper_bgcolor='rgba(255, 255, 255, 0.5)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin={'t':30},
+                )
+            }
+            style3d['display']="none"
+            style2d['display']='block'
+            return style3d, figure, style2d
+        except KeyError:
+            raise PreventUpdate
+
+        
+
+@app.callback([Output('true-confirm', 'displayed'),Output('true-confirm', 'message')],
+            [Input('confirm', 'n_clicks')], [State('strike', 'value')]
+            )
+def call_pop_up(n, strike):
     if n:
-        return True
-    return False
+        if strike:
+            return True, 'Are you ready to compute the price? It might take a while..'
+        else:
+            return True, 'Have You forgot to input your strike price?'
+    return False, 'Are you ready to compute the price? It might take a while..'

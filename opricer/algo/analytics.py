@@ -25,19 +25,15 @@ class GenericSolver(abc.ABC):
 class AnalyticSolver(GenericSolver):
 
     def __call__(self, model, to_df=True):
+        # df = self.get_price(model).T
         # if to_df:
-        #     start = pd.Timestamp(model._time[0])
-        #     end = pd.Timestamp(model.expiry)
-        #     idx = pd.to_datetime(np.linspace(
-        #         start.value, end.value, self.time_no))
-        #     df = self.get_price(model).T
+        #     start, end = model._time[0], model.expiry
+        #     idx = pd.date_range(start, end, self.time_no)
         #     df = pd.DataFrame(df,
         #                       index=idx, columns=self.asset_samples.flatten())
         #     df.index.name = 'Date'
-        #     df.columns.name = 'Spot_price'
-        #     return df
-        # else:
-        return self.get_price(model)
+        #     df.columns.name = 'Spot price'
+        return self.get_price(model).T
 
     def __init__(self, time_no=50, asset_no=20, low_val=0, high_val=5):
         self.time_no = time_no

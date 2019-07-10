@@ -38,9 +38,3 @@ print(idx)
 #     disc_asset = np.exp(-0.15) * payoff
 #     disc_asset = np.mean(disc_asset, axis=1)
 #     return disc_asset
-
-
-# %%
-
-
-# %%

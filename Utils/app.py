@@ -18,8 +18,9 @@ class CustomDash(dash.Dash):
         # Inspect the arguments by printing them
         kwargs['app_entry'] = '''<div id="react-entry-point">
                                 <div class="_dash-loading">
-                                    <div class="circle"></div>
-                                    <div class="circle"></div>
+                                    <div class="progress">
+                                        <div class="indeterminate"></div>
+                                    </div>
                                 </div>
                                 </div>'''
         return '''
@@ -30,16 +31,27 @@ class CustomDash(dash.Dash):
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <meta http-equiv="X-UA-Compatible" content="ie=edge" />
                 <title>Option Pricing Tool</title>
-                <link rel="shortcut icon" type="image/png" href="assets/spartan.png"/>
-                <title>Option Pricing</title>
+                <link rel="shortcut icon" type="image/png" href="src/assets/favicon.ico"/>
                 {css}
             </head>
-            <body>
+            <body id="bg-img">
                 {app_entry}
+
+                <footer class="page-footer">
+                <div class="footer-copyright">
+                <div class="container">
+                &copy; 2019, Zhicheng Han. All Rights Reserved.
+                <a class="grey-text text-lighten-4 right" 
+                href="#!">Endenicher Allee 60, Bonn • MIT License • hanzc.kernel@gmail.com</a>
+                </div>
+                </div>
+                </footer>
+
                 {config}
                 {scripts}
                 {renderer}
             </body>
+
         </html>
         '''.format(
             css=kwargs['css'],
@@ -50,62 +62,9 @@ class CustomDash(dash.Dash):
 
 
 server = flask.Flask(__name__)
-app = CustomDash(__name__, server=server)
+app = CustomDash(__name__, server=server,
+                 assets_folder="./src", assets_ignore=".scss")
 app.config.suppress_callback_exceptions = True
 
 
 # sf_manager = sf_Manager()
-
-millnames = ["", " K", " M", " B", " T"]  # used to convert numbers
-
-
-# return html Table with dataframe values
-def df_to_table(df):
-    return html.Table(
-        # Header
-        [html.Tr([html.Th(col) for col in df.columns])] +
-
-        # Body
-        [
-            html.Tr(
-                [
-                    html.Td(df.iloc[i][col])
-                    for col in df.columns
-                ]
-            )
-            for i in range(len(df))
-        ]
-    )
-
-
-# returns most significant part of a number
-def millify(n):
-    n = float(n)
-    millidx = max(
-        0,
-        min(
-            len(millnames) -
-            1, int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))
-        ),
-    )
-
-    return "{:.0f}{}".format(n / 10 ** (3 * millidx), millnames[millidx])
-
-
-# returns top indicator div
-def indicator(color, text, id_value):
-    return html.Div(
-        [
-
-            html.P(
-                text,
-                className="twelve columns indicator_text"
-            ),
-            html.P(
-                id=id_value,
-                className="indicator_value"
-            ),
-        ],
-        className="four columns indicator",
-
-    )

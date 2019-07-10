@@ -10,6 +10,7 @@ from matplotlib.widgets import Cursor
 from scipy.sparse import diags
 from scipy.linalg import lu_solve, lu_factor
 # from opricer.teststaff import simulate
+import pandas as pd
 
 np.random.seed(123)
 a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
@@ -56,7 +57,8 @@ def plot(options, solvers, Msolvers, with_cursor=False):
 
 
 # plot([b1, c], [], [ASolver, ABSolver])
-print(solver.asset_samples.flatten(), price[:, 0])
+# print(solver.asset_samples.flatten(), price[:, 0])
 
-
-# %%
+solver(b).plot()
+plt.show()
+plt.gcf()

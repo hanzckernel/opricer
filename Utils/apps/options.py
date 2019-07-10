@@ -43,7 +43,7 @@ def modal():
                         "marginBottom": "17",
                     },
                 ),
-                html.Div(className="divider")
+                html.Div(className="divider hide-on-med-and-down")
             ], className="caption",
                 ),
 
@@ -129,7 +129,7 @@ layout = [
                     n_clicks=0,
                     className="waves-effect waves-light btn",
                 ), className="col s12"),
-            html.Div(className='divider col s12', style={"margin": "1.5rem 0"}),
+            html.Div(className='divider col s12 hide-on-med-and-down', style={"margin": "1.5rem 0"}),
             html.P("Dates of Speculation", className="title"),
                 dcc.DatePickerRange(
                 id="spot_date",
@@ -147,7 +147,7 @@ layout = [
                     {'label': 'European Option', 'value': 'EurOption'},
                     {'label': 'American Option', 'value': 'AmeOption'},
                     {'label': 'Barrier Option', 'value': 'BarOption'}], value='EurOption',
-                    className="custom-gap custom-radio", style={"float":"right"}
+                    style={"flex-direction":'column'}, className="custom-gap custom-radio", 
                     ),
             ], className="col s12"),
             
@@ -156,7 +156,8 @@ layout = [
                 dcc.RadioItems(id='otype', options=[
                 {'label': 'Call Option', 'value':'call'},
                 {'label': 'Put Option', 'value':'put'}
-                ], value='call', className="custom-gap custom-radio",
+                ], value='call', style={"flex-direction":'column'},
+                className="custom-gap custom-radio", 
                 ), 
             ], className="col s12"),
         ], className="col s12 m12 l3 center-align"
@@ -231,7 +232,7 @@ layout = [
     ),
         ], className='row'
     ),
-    html.Div(className='divider row'),
+    html.Div(className='divider row hide-on-med-and-down'),
 
     #second row
 
@@ -250,10 +251,10 @@ layout = [
             ],
              className='container col s12 center-align'),
 
-    html.Div(className='divider col s12'),
+    html.Div(className='divider col s12 hide-on-med-and-down'),
 
     #third row
-    html.Div([
+    # html.Div([
         html.Div([
     html.H3("The Fair Option Price", className='title'),
     daq.ToggleSwitch(id='as3d', label=['2D', '3D'], value=True, color='skyblue',
@@ -267,11 +268,12 @@ layout = [
             margin={'t':20, 'l':20, 'b':20, 'r':20},
             )
         },
-        id='opricer_graph', style={"height": "70vh", "width":'95vw'}),
-    dcc.Graph(id='2d_graph', style={"display":'none', "height":"70vh", 'width':'95vw'},)
+        id='opricer_graph', style={"height": "70vh", 'width':"95vw"}),
     ], className="col s12"),
-    ], className="row center-align"
-    ),
+    html.Div([dcc.Graph(id='2d_graph', style={"display":'none', "height":"70vh", 'width':"95vw"})], 
+    className='col s12'),
+    # ], className="row center-align"
+    # ),
 
     # modal div
     html.Div(modal()),
@@ -479,8 +481,8 @@ def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
             State('2d_graph', 'style') ])
 def change2d(as3d, fig3d, style3d, style2d):
     if as3d:
-        style3d['display']="block"
         style2d['display']='none'
+        style3d['display']="block"
         return style3d, {}, style2d
     else:
         try:

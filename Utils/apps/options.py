@@ -23,6 +23,48 @@ import pandas_datareader.data as web
 import random
 from opricer.model import models
 from opricer.algo import pde, analytics, mc
+from flask_caching import Cache
+import requests
+from bs4 import BeautifulSoup
+
+
+
+# memoization of scraping data
+# memoization of scraping data
+cache = Cache(app.server, config={
+    'CACHE_TYPE': 'filesystem',
+    'CACHE_DIR': 'cache'
+})
+
+
+def parse_table(tag):
+    page = requests.get(
+        f"https://www.global-rates.com/interest-rates/libor/{tag}/2019.aspx").content
+    soup = BeautifulSoup(page, 'lxml')
+    page = soup.find('tr', 'tableheader').parent
+
+#   prepocessing the data
+
+    df = pd.read_html(str(page))[0]
+    df.set_index(df.columns[0], inplace=True)
+    df.columns = df.iloc[0]
+    df = df[1:]
+    df.replace('-', float('nan'), inplace=True)
+    df.dropna(how='all', axis=0, inplace=True)
+    df.index.name = 'Time'
+    df.replace(r'\xa0%', '', regex=True, inplace=True)
+    df = df.astype(float)/100
+    df.reset_index(inplace=True)
+    # return df.to_dict('records')
+    return df
+
+
+@cache.memoize(timeout=36000)
+def scrape_libor():
+    currency_list = ['japanese-yen', 'american-dollar',
+                     'british-pound-sterling', 'european-euro', "swiss-franc"]
+    dfs = {tag: parse_table(tag) for tag in currency_list}
+    return dfs
 
 
 def modal():
@@ -66,12 +108,12 @@ def modal():
                     html.Label("Spot Price", htmlFor='spot'),
                 ], className="input-field col s12 m6"),
 
-                html.Div([
-                    dcc.Input(id='int_rate', type='number', value=0, step=0.001,
-                        # placeholder="choose risk-free rate of asset",
-                        className='validate'),
-                    html.Label("Risk-free interest rate (%)", htmlFor='int_rate'),
-                ], className="input-field col s12 m6"),
+                # html.Div([
+                    # dcc.Input(id='int_rate', type='number', value=0, step=0.001,
+                    #     # placeholder="choose risk-free rate of asset",
+                    #     className='validate'),
+                #     html.Label("Risk-free interest rate (%)", htmlFor='int_rate'),
+                # ], className="input-field col s12 m6"),
 
                 html.Div([
                     dcc.Input(id='volatility', type='number', step=0.001,
@@ -122,7 +164,7 @@ layout = [
         [
         html.Div(
         [
-            html.H3("Property Block", className='title'),
+            html.H3("Underlyings", className='title'),
             html.Div(html.Button(
                     "Add New Underlying Asset",
                     id="new_underlying",
@@ -207,8 +249,8 @@ layout = [
             columns=[{'name': 'Name', 'id': 'Name', 'editable': False},
                         {'name': 'Spot Price', 'id': 'spot', 'type': 'numeric',
                     "format":FormatTemplate.money(2)},
-                        {'name': 'Interest Rate', 'id': 'int_rate', 'type': 'numeric',
-                    "format":FormatTemplate.percentage(2)},
+                    #     {'name': 'Interest Rate', 'id': 'int_rate', 'type': 'numeric',
+                    # "format":FormatTemplate.percentage(2)},
                         {'name': 'Volatiltiy', 'id': 'volatility', 'type': 'numeric',
                         "format":FormatTemplate.percentage(2)},
                         {'name': 'Dividend', 'id': 'dividend', 'type': 'numeric',
@@ -237,21 +279,47 @@ layout = [
     #second row
 
     html.Div([
+        
+        html.Div([
+        html.H3("World Data", className='title'),
+        html.Div([
+            dcc.Input(id='int_rate', type='number', step=0.001,
+                      # placeholder="choose risk-free rate of asset",
+                      className='validate', disabled=True, style={'color':'white'}),
+            html.Label("Risk-free interest rate (%)", htmlFor='int_rate'),
+        ], className="input-field col s12", style={'color':'white'}),
+        html.Div([daq.ToggleSwitch(id='libor_on', label=['Use customized rates', 'Use LIBOR rates'],
+                         value=True, color='skyblue')], className='col s12'),
+        dcc.Dropdown(id='choose_currency', className='col s12',
+                     options=[{"label": tag.replace('-', ' '), "value": tag} for tag in scrape_libor().keys()]),
         html.Div([
                     dcc.Input(id='strike', type='number', step=0.001, min = 0.01,
                     className='validate', style={"color":"white"}),
                     html.Label("Strike Price", htmlFor='strike'),
-                ], className="input-field col s12 m6"),
-        html.Div([
-            html.Button('Compute Price!', id='confirm', n_clicks=0, 
-            className="btn btn-large red waves-effect waves-light"),
-        ], className='col s12 m6'),
+                ], className="input-field col s12"),
+    ], className='col s12 m6 center-align'),
+
+    html.Div([
+        dash_table.DataTable(
+            id='libor_table',
+            style_cell={"maxWidth": "1rem", 'fontFamily': 'Arial',
+                        "fontWeight": "300", "filter": "brightness(125%)",
+                        'backgroundColor': 'rgba(255, 255, 255, 0.2)'},
+            css=[{"selector": "tr", "rule": 'background-color:rgba(255, 255, 255, 0.2)'}]),
+        
         dcc.ConfirmDialog(message='Are you ready to compute the price? It might take a while..',
              id='true-confirm'),
             ],
-             className='container col s12 center-align'),
+             className='col s12 m6 center-align'),
+
+    html.Div([
+        html.Button('Compute Price!', id='confirm', n_clicks=0, 
+        className="btn btn-large red waves-effect waves-light"),
+    ], className='col s12 center-align'),
+
 
     html.Div(className='divider col s12 hide-on-med-and-down'),
+    ], className='col s12'),
 
     #third row
     # html.Div([
@@ -279,6 +347,31 @@ layout = [
     html.Div(modal()),
 ]
 
+# Modal controlling
+
+@app.callback(
+    Output("new_underlying", "n_clicks"),
+    [Input("option_modal_close", "n_clicks")],
+)
+def close_modal_callback(n):
+    if n > 0:
+        return 0
+
+@app.callback(
+    Output("option_modal", "style"), [Input("new_underlying", "n_clicks")]
+)
+def display_stock_modal_callback(n):
+    try:
+        if n > 0:
+            return {"display": "block"}
+        else:
+            return {"display": "none"}
+    except TypeError:
+        raise PreventUpdate
+
+
+
+# First Row Correlation Matrix Controlling
 
 @app.callback([Output('corr_matrix', 'columns'),
                Output('corr_matrix', 'data')],
@@ -332,6 +425,9 @@ def update_corr_matrix(tickers, timestamp, data, data_prev):
         data = secret_df.to_dict('records')
     return columns, data
 
+
+# Correlation Matrix => Heat Map
+
 @app.callback(
     Output('heat-map', 'figure'),
     [Input('corr_matrix', 'data'),
@@ -361,15 +457,15 @@ def display_output(rows, columns):
     Output('missing_warning', 'style'), Output('asset_info', 'data'),
     Output('clear_all', 'value')],
     [Input("submit_new_option", "n_clicks"), Input('option-clear', 'n_clicks')],
-    [State('asset_name', 'value'),
-    State('spot', 'value'), State('int_rate', 'value'),
+    [State('asset_name', 'value'),State('spot', 'value'), 
+    # State('int_rate', 'value'),
     State('volatility', 'value'), State('dividend', 'value'), 
     State('missing_warning', 'style'),
     State('underlying_pool', 'options'), State('asset_info', 'data'),
      State('clear_all', 'value')]
 )
 def check_validity(n, clear_btn, name, spot, 
-                int_rate, vol, div, style, options, data, clear_state):
+                 vol, div, style, options, data, clear_state):
     message = ''
     if clear_btn and clear_btn !=0:
         if int(clear_btn) != clear_state:
@@ -390,9 +486,13 @@ def check_validity(n, clear_btn, name, spot,
         style['display']='block'
         return 0, message, style, data, clear_state
     else:
-        data.append({'Name': name, 'spot': spot, 'int_rate': float(int_rate)/100, 
+        data.append({'Name': name, 'spot': spot, 
+                # 'int_rate': float(int_rate)/100, 
                     'volatility': float(vol)/100, 'dividend':float(div)/100})
         return 1, message, style, data, clear_state
+
+
+### Add Ticker. Similar Function as Stock tab, except more complicated ###
 
 @app.callback([Output('underlying_pool', 'value'), Output('underlying_pool', 'options')],
               [Input('asset_info', 'data')])
@@ -402,76 +502,31 @@ def update_ticker(data):
     options = [{'label': name, 'value': name} for name in nameLst]
     return nameLst, options
 
-# reset to 0 add button n_clicks property
-@app.callback(
-    Output("new_underlying", "n_clicks"),
-    [Input("option_modal_close", "n_clicks")],
-)
-def close_modal_callback(n):
-    if n > 0:
-        return 0
+#################################################
+#  Switch between Libor and custom rates`       #
+#################################################
 
-@app.callback(
-    Output("option_modal", "style"), [Input("new_underlying", "n_clicks")]
-)
-def display_stock_modal_callback(n):
-    try:
-        if n > 0:
-            return {"display": "block"}
-        else:
-            return {"display": "none"}
-    except TypeError:
-        raise PreventUpdate
+@app.callback([Output('int_rate', 'disabled'), Output('choose_currency', 'disabled')],
+              [Input('libor_on', 'value'), ])
+def turnon_libor(on):
+    if on:    
+        return True, False
+    else:
+        return False, True
 
-# Input("submit_new_option", "n_clicks")
-
+@app.callback([Output('libor_table', 'columns'), Output('libor_table', 'data')],
+                [Input('choose_currency', 'value')])
+def choose_libor_currency(currency):
+    if currency:
+        dfs = scrape_libor()[currency]
+        cols = [{'id': dfs.columns[0], 'name': dfs.columns[0]}] + [
+            {'id': col, 'name': col, 'type': 'numeric',
+             "format": FormatTemplate.percentage(4)} for col in dfs.columns[1:]]
+        return cols, dfs.to_dict('records')
+    else:
+        return [], []
 
 #### Here begins the Option Pricing!!! ####
-@app.callback(
-    Output('opricer_graph', 'figure'),
-    [Input('true-confirm', 'submit_n_clicks')],
-    [State('asset_info', 'data'), State('ocate', 'value'), State('otype', 'value'),
-    State('spot_date', 'start_date'), State('spot_date', 'end_date'), State('strike', 'value')
-    ]
-)
-def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
-    if data and strike:
-        we_use = data[0]
-        start = datetime.strptime(spot_date, '%Y-%m-%d')
-        end = datetime.strptime(strike_date, '%Y-%m-%d')
-        asset = models.Underlying(start, we_use['spot'])
-        option = getattr(models, ocate)(end, otype)
-        option._attach_asset(strike, asset)
-        solver = analytics.AnalyticSolver(high_val=2, low_val=0)
-        price = solver(option)
-        traces=[go.Surface(
-                        x=solver.asset_samples.flatten(),
-                        y=pd.date_range(start, end, solver.time_no).strftime('%Y-%m-%d, %r'),
-                        z=price,
-                        opacity=0.9,
-                        name='Analytic Solver',
-                        colorscale='Viridis',
-                        hovertemplate='Spot Price: %{x}<br>Time: %{y}<br>Option Worth: %{z}',
-                    )]
-            
-
-        graph_layout = go.Layout(
-            scene=dict(xaxis={'title': 'Asset'},
-            yaxis={'title': 'Date', 
-            'showticklabels':False},
-            zaxis={'title':'Fair Price'}),
-            hovermode='closest',
-            paper_bgcolor='rgba(255, 255, 255, 0.5)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            margin={'t':0, 'l':0, 'b':20, 'r':0, 'pad':0},
-            )
-        figure = {
-                'data': traces, 'layout': graph_layout
-            }
-        del asset, option, solver
-        return figure
-    else:
-        raise PreventUpdate
 
 @app.callback(
             [Output('opricer_graph', 'style'),
@@ -506,7 +561,65 @@ def change2d(as3d, fig3d, style3d, style2d):
         except KeyError:
             raise PreventUpdate
 
-        
+
+@app.callback(
+    Output('opricer_graph', 'figure'),
+    [Input('true-confirm', 'submit_n_clicks')],
+    [State('asset_info', 'data'), State('ocate', 'value'), State('otype', 'value'),
+    State('spot_date', 'start_date'), State('spot_date', 'end_date'), State('strike', 'value')
+    ]
+)
+def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
+    '''
+    We use Monte-Carlo Simulation here by default. At later phase one may consider optimize
+    the plotting by using other PDESolver / AnalyticSolver for simpler case:
+    '''
+    if data and strike:
+        we_use = data[0]
+        start = datetime.strptime(spot_date, '%Y-%m-%d')
+        end = datetime.strptime(strike_date, '%Y-%m-%d')
+        asset = models.Underlying(start, we_use['spot'], dividend=we_use['dividend'])
+        option = getattr(models, ocate)(end, otype)
+        option._attach_asset(strike, asset)
+        if ocate == 'EurOption':
+            solver = mc.BasketMCSolver()
+        elif ocate == 'AmeOption':
+            solver = mc.BasketAmeSolver()
+        elif ocate == 'BarOption':
+            solver = mc.BarMCSolver()
+        else:
+            raise ValueError('Unknown Option Type')
+        price = solver(option)
+        traces=[go.Surface(
+                        x=solver.asset_samples.flatten(),
+                        y=pd.date_range(start, end, solver.time_no).strftime('%Y-%m-%d, %r'),
+                        z=price,
+                        opacity=0.9,
+                        name='Analytic Solver',
+                        colorscale='Viridis',
+                        hovertemplate='Spot Price: %{x}<br>Time: %{y}<br>Option Worth: %{z}',
+                    )]
+            
+
+        graph_layout = go.Layout(
+            scene=dict(xaxis={'title': 'Asset'},
+            yaxis={'title': 'Date', 
+            'showticklabels':False},
+            zaxis={'title':'Fair Price'}),
+            hovermode='closest',
+            paper_bgcolor='rgba(255, 255, 255, 0.5)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin={'t':0, 'l':0, 'b':20, 'r':0, 'pad':0},
+            )
+        figure = {
+                'data': traces, 'layout': graph_layout
+            }
+        del asset, option, solver
+        return figure
+    else:
+        raise PreventUpdate
+
+### Confirm Computation Dialog ###
 
 @app.callback([Output('true-confirm', 'displayed'),Output('true-confirm', 'message')],
             [Input('confirm', 'n_clicks')], [State('strike', 'value')]

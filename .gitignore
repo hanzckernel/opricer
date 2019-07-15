@@ -7,8 +7,11 @@ opricer/teststaff.py
 *.code-workspace
 Utils/gui_test.py
 Utils/src/sass
-Utils/assets
+Utils/assets/
+cache/
 
+
+test.py
 
 
 # Byte-compiled / optimized / DLL files

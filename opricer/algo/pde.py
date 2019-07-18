@@ -13,15 +13,16 @@ class EurSolver(analytics.AnalyticSolver):
 
     def __call__(self, model, greeks = ['price']):
         total_output = self.get_price(model)
-        dS = (self.high_val - self.low_val) * model.spot_price / (self.asset_no-1)
-        dt = model.time_to_maturity / (self.time_no-1)
-        return [{
-            'price': partial(lambda arr: arr[0]),
-            'Delta': partial(lambda arr: np.gradient(arr, float(dS), axis = 1)[0]),
-            'Theta': partial(lambda arr: np.gradient(arr, float(dt), axis = 0)[0]),
-            'Gamma': partial(lambda arr: np.gradient(np.gradient(arr, dS,
-                            axis =1), dS, axis= 1)),}[greek](total_output) for greek in greeks
-        ]
+        # dS = (self.high_val - self.low_val) * model.spot_price / (self.asset_no-1)
+        # dt = model.time_to_maturity / (self.time_no-1)
+        # return [{
+        #     'price': partial(lambda arr: arr[0]),
+        #     'Delta': partial(lambda arr: np.gradient(arr, float(dS), axis = 1)[0]),
+        #     'Theta': partial(lambda arr: np.gradient(arr, float(dt), axis = 0)[0]),
+        #     'Gamma': partial(lambda arr: np.gradient(np.gradient(arr, dS,
+        #                     axis =1), dS, axis= 1)),}[greek](total_output) for greek in greeks
+        # ]
+        return np.array(total_output).squeeze(axis=-1)
 
     @staticmethod
     def _gen_pde_coeff(model):
@@ -100,14 +101,9 @@ class EurSolver(analytics.AnalyticSolver):
             out = np.linalg.solve(
                 mat_left, (mat_right @ out).ravel() + extra_vec).reshape(-1, 1)
             total_output.append(out)
-        total_output.reverse() 
+        total_output.reverse()
 
         return total_output
-
-
-
-
-
 
 
 class AmeSolver(EurSolver):

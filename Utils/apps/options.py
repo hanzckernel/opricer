@@ -27,6 +27,8 @@ from flask_caching import Cache
 import requests
 from bs4 import BeautifulSoup
 
+from scipy.linalg import cholesky
+
 
 
 # memoization of scraping data
@@ -38,9 +40,8 @@ cache = Cache(app.server, config={
 
 
 def parse_table(tag):
-    page = requests.get(
-        f"https://www.global-rates.com/interest-rates/libor/{tag}/2019.aspx").content
-    soup = BeautifulSoup(page, 'lxml')
+    page = requests.get(f"https://www.global-rates.com/interest-rates/libor/{tag}/2019.aspx")
+    soup = BeautifulSoup(page.content, 'lxml')
     page = soup.find('tr', 'tableheader').parent
 
 #   prepocessing the data
@@ -108,12 +109,6 @@ def modal():
                     html.Label("Spot Price", htmlFor='spot'),
                 ], className="input-field col s12 m6"),
 
-                # html.Div([
-                    # dcc.Input(id='int_rate', type='number', value=0, step=0.001,
-                    #     # placeholder="choose risk-free rate of asset",
-                    #     className='validate'),
-                #     html.Label("Risk-free interest rate (%)", htmlFor='int_rate'),
-                # ], className="input-field col s12 m6"),
 
                 html.Div([
                     dcc.Input(id='volatility', type='number', step=0.001,
@@ -236,8 +231,8 @@ layout = [
                                  {'id': 'Test', 'name': 'Test'}],
                         data=[{'Ticker': 'Test', 'Test': 1.0}],
                         editable=True,
-                        style_table={'maxHeight': '20vh', 'overflowY': 'scroll',
-                                    'height':'20vh', 'padding':'0 1rem'},
+                        style_table={'maxHeight': '25vh', 'overflowY': 'scroll',
+                                    'height':'25vh', 'padding':'0 1rem'},
                         style_cell={"maxWidth":"1rem", 'fontFamily': 'Arial',
                         "fontWeight":"300", "filter": "brightness(125%)",
                         'backgroundColor':'rgba(255, 255, 255, 0.2)'},
@@ -256,7 +251,7 @@ layout = [
                         {'name': 'Dividend', 'id': 'dividend', 'type': 'numeric',
                         "format":FormatTemplate.percentage(2)}
                         ],
-            style_table={'maxHeight': '20vh', 'overflowY': 'scroll', "height":"20vh",
+            style_table={'maxHeight': '25vh', 'overflowY': 'scroll', "height":"20vh",
                         'padding':'0 1rem'},
             style_cell={"maxWidth":"1rem", 'fontFamily': 'Arial',
                     "fontWeight":"300", "filter": "brightness(125%)",
@@ -274,7 +269,7 @@ layout = [
     ),
         ], className='row'
     ),
-    html.Div(className='divider row hide-on-med-and-down'),
+    html.Div(className='divider row hide-on-med-and-down', style={'margin-top':'1rem'}),
 
     #second row
 
@@ -283,39 +278,42 @@ layout = [
         html.Div([
         html.H3("World Data", className='title'),
         html.Div([
-            dcc.Input(id='int_rate', type='number', step=0.001,
+            dcc.Input(id='risk_free_rate', type='number', step=0.001,
                       # placeholder="choose risk-free rate of asset",
                       className='validate', disabled=True, style={'color':'white'}),
-            html.Label("Risk-free interest rate (%)", htmlFor='int_rate'),
-        ], className="input-field col s12", style={'color':'white'}),
+            html.Label("Risk-free interest rate (%)", htmlFor='risk_free_rate'),
+        ], className="input-field col s12 m4", style={'color':'white'}),
         html.Div([daq.ToggleSwitch(id='libor_on', label=['Use customized rates', 'Use LIBOR rates'],
-                         value=True, color='skyblue')], className='col s12'),
-        dcc.Dropdown(id='choose_currency', className='col s12',
-                     options=[{"label": tag.replace('-', ' '), "value": tag} for tag in scrape_libor().keys()]),
-        html.Div([
-                    dcc.Input(id='strike', type='number', step=0.001, min = 0.01,
-                    className='validate', style={"color":"white"}),
-                    html.Label("Strike Price", htmlFor='strike'),
-                ], className="input-field col s12"),
-    ], className='col s12 m6 center-align'),
-
+                         value=True, color='skyblue', size=80)], 
+                         className='col s12 m4', style={'margin-top':'1rem'}),
+        # html.P('Choose Libor-based currency', className='title', style={'margin-top':'1rem'}),
+        dcc.Dropdown(id='choose_currency', placeholder='Choose Libor based-currency',
+                    className='col s12 m4', style={'margin-top':'1rem'},
+                     options=[{"label": tag.replace('-', ' ').title(), "value": tag}
+                      for tag in scrape_libor().keys()]),
+        # html.Div(id='int_rate'),
+        dcc.Store(id='int_rate'),
+    ], className='col s12 center-align'),
     html.Div([
         dash_table.DataTable(
             id='libor_table',
-            style_cell={"maxWidth": "1rem", 'fontFamily': 'Arial',
+            style_cell={'fontFamily': 'Arial',
                         "fontWeight": "300", "filter": "brightness(125%)",
                         'backgroundColor': 'rgba(255, 255, 255, 0.2)'},
             css=[{"selector": "tr", "rule": 'background-color:rgba(255, 255, 255, 0.2)'}]),
         
-        dcc.ConfirmDialog(message='Are you ready to compute the price? It might take a while..',
-             id='true-confirm'),
+        dcc.ConfirmDialog(id='true-confirm'),
             ],
-             className='col s12 m6 center-align'),
-
+             className='col s12 center-align'),
+    html.Div([
+                    dcc.Input(id='strike', type='number', step=0.001, min = 0.01,
+                    className='validate', style={"color":"white"}),
+                    html.Label("Strike Price", htmlFor='strike'),
+                ], className="input-field col s12"),
     html.Div([
         html.Button('Compute Price!', id='confirm', n_clicks=0, 
         className="btn btn-large red waves-effect waves-light"),
-    ], className='col s12 center-align'),
+    ], className='col s12 center-align', style={'margin-bottom':'1rem'}),
 
 
     html.Div(className='divider col s12 hide-on-med-and-down'),
@@ -342,6 +340,8 @@ layout = [
     className='col s12'),
     # ], className="row center-align"
     # ),
+
+    html.Div(id='test'),
 
     # modal div
     html.Div(modal()),
@@ -405,7 +405,7 @@ def update_corr_matrix(tickers, timestamp, data, data_prev):
                 secret_df.at[i, j] = 1.0
             else:
                 try:
-                    if float(item_changed[1]) > 1 or float(item_changed[1]) < -1:
+                    if float(item_changed[1]) >= 1 or float(item_changed[1]) <= -1:
                         secret_df.at[i, j] = secret_df.at[j, i]
                     else:
                         secret_df.at[j, i] = secret_df.at[i, j]
@@ -506,7 +506,7 @@ def update_ticker(data):
 #  Switch between Libor and custom rates`       #
 #################################################
 
-@app.callback([Output('int_rate', 'disabled'), Output('choose_currency', 'disabled')],
+@app.callback([Output('risk_free_rate', 'disabled'), Output('choose_currency', 'disabled')],
               [Input('libor_on', 'value'), ])
 def turnon_libor(on):
     if on:    
@@ -520,20 +520,35 @@ def choose_libor_currency(currency):
     if currency:
         dfs = scrape_libor()[currency]
         cols = [{'id': dfs.columns[0], 'name': dfs.columns[0]}] + [
-            {'id': col, 'name': col, 'type': 'numeric',
+            {'id': col, 'name': col.title(), 'type': 'numeric',
              "format": FormatTemplate.percentage(4)} for col in dfs.columns[1:]]
         return cols, dfs.to_dict('records')
     else:
         return [], []
 
-#### Here begins the Option Pricing!!! ####
+# Send interest rat
+@app.callback(Output('int_rate', 'data'),
+    [Input('risk_free_rate', 'value'), Input('libor_table', 'data'), Input('libor_on', 'value')])
+def store_int_rate(custom_rate, libor_table, libor_on):
+    if libor_on and libor_table:
+        return libor_table[-1]['average']
+    elif not libor_on and custom_rate is not None:
+        return custom_rate/100
+    else:
+        raise PreventUpdate
 
+
+    
+
+###########################################
+#### Here begins the Option Pricing!!! ####
+###########################################
 @app.callback(
             [Output('opricer_graph', 'style'),
             Output('2d_graph', 'figure'),Output('2d_graph', 'style')],
             [Input('as3d', 'value')],
             [State('opricer_graph', 'figure'), State('opricer_graph', 'style'),
-            State('2d_graph', 'style') ])
+            State('2d_graph', 'style')])
 def change2d(as3d, fig3d, style3d, style2d):
     if as3d:
         style2d['display']='none'
@@ -541,11 +556,12 @@ def change2d(as3d, fig3d, style3d, style2d):
         return style3d, {}, style2d
     else:
         try:
+        
             scatter = fig3d['data'][0]
             x = scatter['x']
-            y = scatter['z'][-1]
+            y = scatter['z'][0]
             figure= {
-                "data": [go.Scatter(x=x, y=y, mode='lines', name='Analytic Solver')],
+                "data": [go.Scatter(x=x, y=y, mode='lines')],
                 "layout": go.Layout(
                 xaxis={'title':'Spot Price at End Time'},
                 yaxis={'title':"Option Price"},
@@ -561,48 +577,84 @@ def change2d(as3d, fig3d, style3d, style2d):
         except KeyError:
             raise PreventUpdate
 
+# @app.callback([Output('as3d', 'disabled'), Output('as3d', 'value')],
+#                 [Input('ocate', 'value')])
+# def disable3d(ocate):
+#     if ocate == 'AmeOption':
+#         return True, False
+#     else:
+#         return False, True
+
 
 @app.callback(
+    # Output('test', 'children'),
     Output('opricer_graph', 'figure'),
     [Input('true-confirm', 'submit_n_clicks')],
     [State('asset_info', 'data'), State('ocate', 'value'), State('otype', 'value'),
-    State('spot_date', 'start_date'), State('spot_date', 'end_date'), State('strike', 'value')
-    ]
+    State('spot_date', 'start_date'), State('spot_date', 'end_date'), State('strike', 'value'),
+    State('int_rate', 'data'), State('corr_matrix', 'data')]
 )
-def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
+def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike, int_rate, corr_matrix):
     '''
     We use Monte-Carlo Simulation here by default. At later phase one may consider optimize
     the plotting by using other PDESolver / AnalyticSolver for simpler case:
     '''
-    if data and strike:
-        we_use = data[0]
+    if data and strike and int_rate:
         start = datetime.strptime(spot_date, '%Y-%m-%d')
         end = datetime.strptime(strike_date, '%Y-%m-%d')
-        asset = models.Underlying(start, we_use['spot'], dividend=we_use['dividend'])
-        option = getattr(models, ocate)(end, otype)
-        option._attach_asset(strike, asset)
-        if ocate == 'EurOption':
-            solver = mc.BasketMCSolver()
-        elif ocate == 'AmeOption':
-            solver = mc.BasketAmeSolver()
-        elif ocate == 'BarOption':
-            solver = mc.BarMCSolver()
+        dic = {asset['Name']: models.Underlying(start, asset['spot'], dividend=asset['dividend']) 
+                for asset in data}
+
+        # Verify which solver and option object to be initialized
+        if len(dic) == 1:
+            option = getattr(models, ocate)(end, otype)
+            option._attach_asset(strike, *dic.values())
+            option.int_rate = lambda t: int_rate
+            if ocate == 'EurOption':
+                solver = pde.EurSolver()
+            elif ocate == 'AmeOption':
+                solver = pde.AmeSolver()
+            elif ocate == 'BarOption':
+                raise ValueError('currently not supported..')
+                # solver = pde.BarSolver()
+            price=solver(option)
+            x_axis = solver.asset_samples.flatten()
+
         else:
-            raise ValueError('Unknown Option Type')
-        price = solver(option)
-        traces=[go.Surface(
-                        x=solver.asset_samples.flatten(),
-                        y=pd.date_range(start, end, solver.time_no).strftime('%Y-%m-%d, %r'),
-                        z=price,
-                        opacity=0.9,
-                        name='Analytic Solver',
-                        colorscale='Viridis',
-                        hovertemplate='Spot Price: %{x}<br>Time: %{y}<br>Option Worth: %{z}',
-                    )]
+            option = models.BasketOption(end, otype)
+            option._attach_asset(strike, *dic.values())
+            option.corr_mat = pd.DataFrame(corr_matrix).fillna(0).drop(
+                            'Ticker', axis=1).values.astype('float')
+            if ocate == 'EurOption':
+                solver = mc.BasketMCSolver()
+            elif ocate == 'AmeOption':
+                solver = mc.BasketAmeSolver()
+            elif ocate == 'BarOption':
+                raise ValueError('currently not supported..')
+                # solver = mc.BarMCSolver()
+            else:
+                raise ValueError('Unknown Option Type')
+            price = solver(option)
+            x_axis = solver.asset_samples.squeeze(1).sum(axis=-1)
             
+        # hover_samples = np.tile([', '.join(row) for row in x_axis.astype(str)], (solver.time_no, 1)).T
+        traces=[go.Surface(
+                    x=x_axis,
+                    y=pd.date_range(start, end, solver.time_no).strftime('%Y-%m-%d, %r'),
+                    z=price,
+                    # text= hover_samples,
+                    opacity=0.9,
+                    name=solver.__class__.__name__,
+                    colorscale='Viridis',
+                    # hoverinfo='text'
+                    hovertemplate='''Average Spot Price: %{x}
+                    <br>Time: %{y}<br>Estimated Option Worth: %{z}''',
+                )]
 
         graph_layout = go.Layout(
-            scene=dict(xaxis={'title': 'Asset'},
+            scene=dict(
+            xaxis={'title': 'Asset', "tickvals":np.linspace(x_axis[0], x_axis[-1], 5),
+             "ticktext": np.round(np.linspace(solver.asset_samples[0], solver.asset_samples[-1], 5), 5)},
             yaxis={'title': 'Date', 
             'showticklabels':False},
             zaxis={'title':'Fair Price'}),
@@ -614,7 +666,7 @@ def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
         figure = {
                 'data': traces, 'layout': graph_layout
             }
-        del asset, option, solver
+        del option, solver
         return figure
     else:
         raise PreventUpdate
@@ -622,12 +674,25 @@ def plot_graph(n_clicks, data, ocate, otype, spot_date, strike_date, strike):
 ### Confirm Computation Dialog ###
 
 @app.callback([Output('true-confirm', 'displayed'),Output('true-confirm', 'message')],
-            [Input('confirm', 'n_clicks')], [State('strike', 'value')]
+            [Input('confirm', 'n_clicks')], [State('strike', 'value'), 
+            State('int_rate', 'data'), State('asset_info', 'data')]
             )
-def call_pop_up(n, strike):
+def call_pop_up(n, strike, int_rate, data):
     if n:
-        if strike:
-            return True, 'Are you ready to compute the price? It might take a while..'
-        else:
+        if not strike:
             return True, 'Have You forgot to input your strike price?'
-    return False, 'Are you ready to compute the price? It might take a while..'
+        elif int_rate is None:
+            return True, 'Have You forgot to get a valid interest rate?'
+        elif not data:
+            return True, 'Have you forgot to attach any underlying asset?'
+        else:
+            # if strike and int_rate is not None and not data:
+            detail = f'''\nYou are about to compute an option with:\n 
+                Strike Price of Option: {strike}\n
+                Risk-free Interest Rate: {int_rate}\n
+                Are you ready to compute the price? This might take a while..
+                '''
+            return True, detail
+    return False, ''
+
+

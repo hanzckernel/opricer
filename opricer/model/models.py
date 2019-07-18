@@ -149,6 +149,9 @@ class BasketOption(Option):
 
     def set_corr(self, corr_lst):
         """
+        This matter is now deprecated, as the new UI solves the entry problem.
+        """
+        """
         Load the correlation matrix using only upper-triangle entries.
         For (n, n)-matrix M, the corr_lst takes entries of the following order:
         (M12, ..., M1n, M23, M24, ..., M(n-1)n)

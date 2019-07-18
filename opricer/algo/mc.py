@@ -15,7 +15,7 @@ from sklearn.linear_model import LinearRegression
 
 class GenericMCSolver(abc.ABC):
 
-    def __init__(self, path_no=100, asset_no=5, time_no=11, high_val=5, low_val=0):
+    def __init__(self, path_no=200, asset_no=20, time_no=100, high_val=5, low_val=0):
         self.asset_no = asset_no
         self.time_no = time_no
         self.path_no = path_no
@@ -23,7 +23,7 @@ class GenericMCSolver(abc.ABC):
         self.high_val = high_val
 
     @abc.abstractmethod
-    def get_price(model):
+    def get_price(self, model):
         pass
 
     @classmethod
@@ -79,13 +79,15 @@ class EurMCSolver(GenericMCSolver):
         return np.array(asset_lst)
 
     def get_price(self, model):
-        asset = self._gen_path(model)[-1]
-        payoff = model.payoff(asset)
-        disc = np.exp(-back_quad(model.int_rate, self.time_samples))
+        asset = self._gen_path(model)
+        payoff = model.payoff(asset).transpose()
+        disc = np.exp(-back_quad(model.int_rate,
+                                 self.time_samples))
 
+        disc_all = disc * payoff
         # variance = np.var(asset, axis=0)
-        payoff = np.mean(disc[-1] * payoff, axis=1)
-        return payoff
+        payoff = np.flip(np.mean(disc_all, axis=0), axis=1)
+        return payoff.transpose()
 
 
 class logMCSolver(EurMCSolver):
@@ -146,10 +148,14 @@ class AmeMCSolver(EurMCSolver):
     def get_price(self, model):
         '''asset_lst.shape = (self.BTime_no, self.asset_no, self.BPath_no)'''
         asset_lst = self._gen_path(model)
+
+        # generate linear regression model for Longstaff-Schwartz algorithm
         reg_model = LinearRegression()
         cum_intrate = back_quad(model.int_rate, self.time_samples)
         lst_payoff = model.payoff(asset_lst)
         stopping_idx = -np.ones((self.asset_no, self.path_no), dtype=int)
+
+        # Stopping_val records the stock_price and the timespot it is recorded (stopping_idx)
         stopping_val = [lst_payoff[-1], stopping_idx]
         poly_axis = -1 if hasattr(model, 'AssetCount') else None
         for time_idx in range(-2, -self.time_no - 1, -1):
@@ -171,10 +177,13 @@ class AmeMCSolver(EurMCSolver):
                     X_payoff > Y_pred, X_payoff, stopping_val[0])
             else:
                 break
-        fair_price = (stopping_val[0] * (np.exp(
-            cum_intrate[-stopping_val[1] - 1])-cum_intrate[-1])).sum(axis=1)/self.path_no
+        # fair_price = (stopping_val[0] * (np.exp(
+        #     cum_intrate[-stopping_val[1] - 1])-cum_intrate[-1])).sum(axis=1)/self.path_no
+        undiscounted = (
+            stopping_val[0] * np.exp(cum_intrate[-stopping_val[1] - 1])).sum(axis=1)/self.path_no
+        fair_price2 = np.outer(undiscounted, np.exp(-cum_intrate))
         # first_nonzero = np.argwhere(stopping_val[0] == 0)[1]
-        return fair_price
+        return fair_price2
 
 
 class BasketMCSolver(EurMCSolver):
@@ -184,10 +193,10 @@ class BasketMCSolver(EurMCSolver):
         generate path in shape: (asset_no, path_no, AssetCount)
         """
         self._gen_parameter(model, self.time_no)
-        corr_sqrt = cholesky(model.corr_mat, lower=True)
+        corr_sqrt = cholesky(model.corr_mat)
         coef_dW, coef_dt = self._gen_coeff(model)
         random_set = randn(self.path_no, self.time_no, model.AssetCount)
-        random_set = np.dot(random_set, corr_sqrt)
+        random_set = np.dot(random_set, corr_sqrt.T)
         self.asset_samples = np.expand_dims(self.asset_samples, axis=1)
         asset = np.tile(self.asset_samples, (1, self.path_no, 1))
         asset_lst = [asset.copy()]

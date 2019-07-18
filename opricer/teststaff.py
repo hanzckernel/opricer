@@ -38,3 +38,6 @@ print(idx)
 #     disc_asset = np.exp(-0.15) * payoff
 #     disc_asset = np.mean(disc_asset, axis=1)
 #     return disc_asset
+
+
+mat = np.array([[1, 0.2, 0.9999], [0, 1, 0], [0.9999, 0.2, 1]])

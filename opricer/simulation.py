@@ -67,7 +67,7 @@ def plot(options, solvers, Msolvers, with_cursor=False):
 # print(Msolver3.asset_samples.shape,
 #       Msolver3.time_samples.shape, Msolver3(c).shape)
 
-# plt.show()1
+# plt.show()
 # plt.gcf()
 # print(ABSolver(c), ABSolver.asset_samples.squeeze(
 #     1).sum(axis=1).shape, ABSolver.time_samples.shape)

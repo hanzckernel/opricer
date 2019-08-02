@@ -30,13 +30,16 @@ from bs4 import BeautifulSoup
 from scipy.linalg import cholesky
 
 
-
-# memoization of scraping data
 # memoization of scraping data
 cache = Cache(app.server, config={
     'CACHE_TYPE': 'filesystem',
     'CACHE_DIR': 'cache'
 })
+
+
+def func_check(string):
+    pass
+    
 
 
 def parse_table(tag):
@@ -92,6 +95,16 @@ def modal():
 
 
             # modal form
+            html.Div([
+                html.Div(
+                [html.P(['Supports mathematical function inputs. For details see:  ',
+                 html.A('HERE', href="https://docs.python.org/3/library/math.html")]),
+                html.P('Example: lambda x, y: np.sin(x) **2  + np.arctan(y)')], 
+                style={'display':'none'}, 
+                className='col s8', id='func_tip'),
+                html.Div(daq.ToggleSwitch(id='func_off', label=['Input Function Type', 'Input Constant Type'],
+                         value=True, color='rosybrown'), className='col s4 right'),
+            ], className='row'),
             html.Div(
                 html.Div([
                 html.Div([
@@ -206,6 +219,8 @@ layout = [
             [
             html.P('Correlation Heatmap', className='title'),
             dcc.Graph(id='heat-map', figure={'layout': go.Layout(
+            xaxis=dict(showgrid=False, zeroline=False),
+            yaxis=dict(showgrid=False, zeroline=False),
             paper_bgcolor='rgba(255, 255, 255, 0.5)',
             plot_bgcolor='rgba(0,0,0,0)',
             margin={'t':40},
@@ -369,6 +384,19 @@ def display_stock_modal_callback(n):
     except TypeError:
         raise PreventUpdate
 
+# Choose modal input type
+@app.callback([Output('func_tip', 'style'), Output('volatility', 'type'),
+             Output('dividend', 'type')],
+             [Input('func_off', 'value')], [State('func_tip', 'style')])
+def turnoff_func_input(func_off, style):
+    if func_off:
+        style['display']='none'
+        return style, 'number', 'number'
+    else:
+        style['display']='inline-block'
+        return style, 'text', 'text'
+
+
 
 
 # First Row Correlation Matrix Controlling
@@ -445,6 +473,8 @@ def display_output(rows, columns):
         }],
 
         'layout': go.Layout(
+            xaxis=dict(showgrid=False, zeroline=False),
+            yaxis=dict(showgrid=False, zeroline=False),
             paper_bgcolor='rgba(255, 255, 255, 0.5)',
             plot_bgcolor='rgba(0,0,0,0)',
             margin={'t':40},

@@ -1,0 +1,12 @@
+{
+  "name": "opricer-utils",
+  "version": "1.0.0",
+  "description": "Frontend utilities for opricer",
+  "scripts": {
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "jsdom": "^23.0.0"
+  }
+}

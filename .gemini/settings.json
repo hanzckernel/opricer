@@ -1,0 +1,10 @@
+{
+  "general": {
+    "previewFeatures": true
+  },
+  "tools": {
+    "shell": {
+      "enableInteractiveShell": true
+    }
+  }
+}

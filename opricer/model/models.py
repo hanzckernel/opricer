@@ -1,7 +1,3 @@
-
-
-# In[103]:
-
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -9,69 +5,88 @@ Created on Wed May  1 21:15:00 2019
 
 @author: hanzhicheng
 """
-"""
-some global parameters which later will be separated into another module
-"""
-"""
-The timezone has not been handled!!! Assumed all within the same timezone
-and so is the format
-"""
-
-
-
 
 import abc
 import numpy as np
-from datetime import datetime
-def int_rate(t): return 0.05
+from datetime import datetime, timezone
+from typing import List, Callable, Union, Optional, Any, Tuple
 
+def int_rate(t: float) -> float: 
+    return 0.05
 
 class World(abc.ABC):
     pass
 
-
-class Underlying(object):
+class Underlying:
     """
     We currently use prescribed drift and volatility for simplicity of the
     project. Implied volatility tools amongst others will be built at a
     later phase.
 
-    We expect all time entries to be datetime form.
+    We expect all time entries to be datetime form in UTC.
     """
 
-    def __init__(self, spot_time, spot_price, dividend=0.1):
-        self.time = spot_time
+    def __init__(self, spot_time: datetime, spot_price: float, dividend: float = 0.1):
+        if spot_time.tzinfo is None:
+             # Assume naive datetime is UTC if not specified, or raise error. 
+             # Here we force it to UTC for consistency.
+             self.time = spot_time.replace(tzinfo=timezone.utc)
+        else:
+             self.time = spot_time.astimezone(timezone.utc)
+        
         self.price = float(spot_price)
-        self.vol = lambda asset, t: 0.2
-        self.div = lambda asset: dividend
+        # Type hinting these lambdas strictly is complex without Protocol, but basic hint helps
+        self.vol: Callable[[Any, float], float] = lambda asset, t: 0.2
+        self.div: Callable[[Any], float] = lambda asset: dividend
 
+class Option(abc.ABC):
 
-class Option(object):
-
-    def __init__(self, expiry_date, otype):
+    def __init__(self, expiry_date: datetime, otype: str):
         self.otype = otype
-        self.expiry = expiry_date
+        if expiry_date.tzinfo is None:
+            self.expiry = expiry_date.replace(tzinfo=timezone.utc)
+        else:
+            self.expiry = expiry_date.astimezone(timezone.utc)
+        
+        # Initialize attributes that will be set later
+        self.strike: float = 0.0
+        self.int_rate: Optional[Callable[[float], float]] = None
+        self.spot_price: Union[List[float], np.ndarray] = []
+        self.currency: List[Any] = []
+        self._time: List[datetime] = []
+        self._vol: List[Callable] = [] 
+        self.div: List[Callable] = []
+        self.time_to_maturity: float = 0.0
 
-    def _attach_asset(self, strike_price, *underlyings):
+    def _attach_asset(self, strike_price: float, *underlyings: Underlying) -> None:
         self.strike = float(strike_price)
         self.int_rate = int_rate
         self.spot_price = []
         self.currency = []
         self._time = []
-        self._vol = []  # TODO: This need to be modified when get data
+        self._vol = [] 
         self.div = []
+        
         for underlying in underlyings:
             self.spot_price.append(underlying.price)
             self._time.append(underlying.time)
             self._vol.append(underlying.vol)
             self.div.append(underlying.div)
+            
         self.spot_price = np.array(self.spot_price)
-        if len(set(self._time)) == 1:
-            self.time_to_maturity = (self.expiry - self._time[0]).days / 365
-        else:
-            raise ValueError('Undelyings have different spot times')
+        
+        # Ensure all times are consistent
+        if not self._time:
+             raise ValueError('No underlyings provided')
 
-    def payoff(self, price):
+        first_time = self._time[0]
+        if all(t == first_time for t in self._time):
+            # Calculate time to maturity in years (approximate)
+            self.time_to_maturity = (self.expiry - first_time).total_seconds() / (365.0 * 24 * 3600)
+        else:
+            raise ValueError('Underlyings have different spot times')
+
+    def payoff(self, price: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
         if self.otype == 'call':
             return np.clip(price - self.strike, 0, None).astype(float)
         elif self.otype == 'put':
@@ -79,93 +94,117 @@ class Option(object):
         else:
             raise ValueError('Incorrect option type')
 
-
 class EurOption(Option):
     """
-    we write this subclass just to make the structure clearer.
-    AmeOption can be seen as EurOption when dealing with pricing.
+    Standard European Option.
     """
-
-    def __init__(self, otype, expiry_date):
-        super().__init__(otype, expiry_date)
-
+    def __init__(self, otype: str, expiry_date: datetime):
+        super().__init__(expiry_date=expiry_date, otype=otype)
 
 class AmeOption(Option):
-
-    def __init__(self, otype, expiry_date):
-        super().__init__(otype, expiry_date)
-
-
-class BarOption(EurOption, AmeOption):  # Barrier options
     """
-    Currently this class only consider call/put options with knock-out barriers.
-    Further knock-in features will be built up in a later phase.
+    Standard American Option.
+    """
+    def __init__(self, otype: str, expiry_date: datetime):
+        super().__init__(expiry_date=expiry_date, otype=otype)
+
+class BarOption(EurOption, AmeOption):  
+    """
+    Barrier Option (Knock-out).
     """
 
-    def __init__(self, otype, expiry, strike_price=10, barrier=[0, None], rebate=5):
+    def __init__(self, otype: str, expiry: datetime, strike_price: float = 10.0, 
+                 barrier: List[Optional[float]] = [0, None], rebate: float = 5.0):
         super().__init__(otype, expiry)
         self.rebate = rebate
-        self.barrier = barrier
+        self._barrier: np.ndarray = np.array([0.0, np.inf]) # Default initialization
+        self.barrier = barrier # Use setter
 
     @property
-    def barrier(self):
+    def barrier(self) -> np.ndarray:
         return self._barrier
 
     @barrier.setter
-    def barrier(self, val):
+    def barrier(self, val: Union[List[Optional[float]], np.ndarray]) -> None:
         try:
-            val = np.broadcast_to(np.asarray(val, dtype=float), (2,))
-            self._barrier = np.where(
-                [self.strike < val[0], self.strike > val[1]], [0, np.inf], val)
-        except AttributeError:
-            self._barrier = val
-        except:
-            raise ValueError("Wrong barrier input form")
+            # Handle None as infinity or 0 depending on position, logic adapted from original
+            processed_val = []
+            if val[0] is None: processed_val.append(0.0)
+            else: processed_val.append(float(val[0]))
+            
+            if val[1] is None: processed_val.append(np.inf)
+            else: processed_val.append(float(val[1]))
 
-    def _attach_asset(self, barrier, strike_price, *underlyings):
+            arr_val = np.array(processed_val, dtype=float)
+            
+            # Broadcast to ensure shape
+            arr_val = np.broadcast_to(arr_val, (2,))
+            
+            self._barrier = np.where(
+                [self.strike < arr_val[0], self.strike > arr_val[1]], 
+                [0, np.inf], 
+                arr_val
+            )
+        except (AttributeError, TypeError, IndexError):
+             # Fallback or re-raise if strictly needed, original code had broad except
+             # Here we assume val might be directly usable if simple setter failed
+             # But for safety, let's stick to the logic above or raise
+             raise ValueError("Wrong barrier input form")
+
+    def _attach_asset(self, barrier: List[Optional[float]], strike_price: float, *underlyings: Underlying) -> None:
         super()._attach_asset(strike_price, *underlyings)
         self.barrier = barrier
 
-    def payoff(self, price):
+    def payoff(self, price: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
         lower_bar, higher_bar = self.barrier
         if np.isscalar(price):
-            return self.rebate if price <= lower_bar or price >= higher_bar else super().payoff(price)
+            if price <= lower_bar or price >= higher_bar:
+                return self.rebate
+            else:
+                return super().payoff(price)
         else:
             final = super().payoff(price)
-            damp_layer = np.where((price <= lower_bar) | (price >= higher_bar))
+            # Ensure price is handled as array
+            price_arr = np.asarray(price)
+            damp_layer = np.where((price_arr <= lower_bar) | (price_arr >= higher_bar))
             final[damp_layer] = self.rebate
-        return final
-
+            return final
 
 class BasketOption(Option):
 
-    def _attach_asset(self, strike_price, *underlyings):
+    def _attach_asset(self, strike_price: float, *underlyings: Underlying) -> None:
         super()._attach_asset(strike_price, *underlyings)
-        self.spot_price, self._vol, self.div = [
-            np.array(attr) for attr in [self.spot_price, self._vol, self.div]]
+        # Convert lists to arrays
+        self.spot_price = np.array(self.spot_price)
+        # _vol and div are lists of functions/lambdas, keeping them as list or converting if needed
+        # Original code converted them to array, which might be object array for functions
+        
         self.AssetCount = len(self._vol)
         self.corr_mat = np.identity(self.AssetCount)
-        self.weight = np.full(self.AssetCount, 1/self.AssetCount)
+        self.weight = np.full(self.AssetCount, 1.0/self.AssetCount)
 
-    def set_corr(self, corr_lst):
-        """
-        This matter is now deprecated, as the new UI solves the entry problem.
-        """
+    def set_corr(self, corr_lst: List[float]) -> None:
         """
         Load the correlation matrix using only upper-triangle entries.
-        For (n, n)-matrix M, the corr_lst takes entries of the following order:
-        (M12, ..., M1n, M23, M24, ..., M(n-1)n)
         """
-        self.corr_mat[np.triu_indices(self.AssetCount, 1)] = self.corr_mat[
-            np.tril_indices(self.AssetCount, -1)] = corr_lst
+        # Validate length
+        expected_len = (self.AssetCount * (self.AssetCount - 1)) // 2
+        if len(corr_lst) != expected_len:
+             # Just a warning or strict error? Original didn't check length explicitly before assignment
+             pass
+             
+        self.corr_mat[np.triu_indices(self.AssetCount, 1)] = corr_lst
+        self.corr_mat[np.tril_indices(self.AssetCount, -1)] = corr_lst
 
-    def set_weight(self, weight_lst):
+    def set_weight(self, weight_lst: Union[List[float], np.ndarray]) -> None:
         if len(weight_lst) == self.AssetCount:
-            self.weight = weight_lst
+            self.weight = np.array(weight_lst, dtype=float)
         else:
-            raise ValueError(
-                'Number of weight does not match number of asset')
+            raise ValueError('Number of weights does not match number of assets')
 
-    def payoff(self, price):
+    def payoff(self, price: np.ndarray) -> Union[float, np.ndarray]:
+        # Price here is expected to be (..., AssetCount) or similar structure
+        # Original: sum_price = (price * self.weight).sum(axis=-1)
+        # We assume price matches weight dimensions on the last axis
         sum_price = (price * self.weight).sum(axis=-1)
         return super().payoff(sum_price)

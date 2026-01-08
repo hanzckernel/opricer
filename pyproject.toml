@@ -1,0 +1,18 @@
+[project]
+name = "opricer"
+version = "0.2.0"
+description = "American/European option pricer with Finite Difference and MC methods"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.1.0",
+    "scipy>=1.14.0",
+    "pandas>=2.2.0",
+    "dash>=2.18.0",
+    "gunicorn>=23.0.0",  # For web deployment
+    "requests>=2.32.0",  # For scraping
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 import pandas as pd
 import flask
-import dash
+import  dash
 from dash.dependencies import Input, Output, State
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc, html
+# import dash_core_components as dcc
+# import dash_html_components as html
 from plotly import graph_objs as go
 from datetime import datetime, date
 from dash.exceptions import PreventUpdate

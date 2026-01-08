@@ -92,8 +92,8 @@ class EurSolver(analytics.AnalyticSolver):
         total_output = [out]
 
         for time in range(1, self.time_no):
-            mat_left = matrix_left[-time - 1].A
-            mat_right = matrix_right[-time].A
+            mat_left = matrix_left[-time - 1].toarray()
+            mat_right = matrix_right[-time].toarray()
             mat_left, mat_right = mat_left[:, 1:-1], mat_right[:, 1:-1]
             extra_vec = np.zeros(self.asset_no)
             extra_vec[[0, -1]] = lower_bdd[-time] + lower_bdd[-time - 1], \
@@ -168,9 +168,8 @@ class AmeSolver(EurSolver):
         total_output = [begin]
         if model.otype.lower() == 'call':
             for time in range(1, self.time_no):
-                mat_Lleft, mat_Uleft = matrix_Lleft[-time -
-                                                    1].A,  matrix_Uleft[-time-1].A
-                mat_right = matrix_right[-time].A[1:-1, 2:-2]
+                mat_Lleft, mat_Uleft = matrix_Lleft[-time - 1].toarray(), matrix_Uleft[-time-1].toarray()
+                mat_right = matrix_right[-time].toarray()[1:-1, 2:-2]
                 extra_vec = np.zeros(self.asset_no-2)
                 extra_vec[[0, -1]] = lower_bdd[-time] + lower_bdd[-time - 1], \
                     upper_bdd[-time] + upper_bdd[-time - 1]
@@ -183,9 +182,8 @@ class AmeSolver(EurSolver):
                 total_output.append(out)
         if model.otype.lower() == 'put':
             for time in range(1, self.time_no):
-                mat_Lleft, mat_Uleft = matrix_Lleft[-time -
-                                                    1].A,  matrix_Uleft[-time-1].A
-                mat_right = matrix_right[-time].A[1:-1, 2:-2]
+                mat_Lleft, mat_Uleft = matrix_Lleft[-time - 1].toarray(), matrix_Uleft[-time-1].toarray()
+                mat_right = matrix_right[-time].toarray()[1:-1, 2:-2]
                 extra_vec = np.zeros(self.asset_no-2)
                 extra_vec[[0, -1]] = lower_bdd[-time] + lower_bdd[-time - 1], \
                     upper_bdd[-time] + upper_bdd[-time - 1]
@@ -239,8 +237,7 @@ class BarSolver(EurSolver):
                               | (self.asset_samples >= higher_bar))
         total_output = [out]
         for time in range(1, self.time_no):
-            mat_left, mat_right = matrix_left[-time -
-                                              1].A, matrix_right[-time].A
+            mat_left, mat_right = matrix_left[-time - 1].toarray(), matrix_right[-time].toarray()
             mat_left, mat_right = mat_left[1:-1, 2:-2], mat_right[1:-1, 2:-2]
             extra_vec = np.zeros(self.asset_no-2)
             extra_vec[[0, -1]] = lower_bdd[-time] + lower_bdd[-time - 1], \

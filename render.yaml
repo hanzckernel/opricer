@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: opricer
+    env: python
+    plan: free
+
+    # If your repo's Python package code is needed at runtime, installing "." is helpful.
+    buildCommand: pip install -r requirements.txt && pip install .
+
+    # Most Heroku-style Procfiles for Flask look like: "web: gunicorn index:app"
+    # Render sets PORT automatically; bind gunicorn to it.
+    startCommand: gunicorn index:app --bind 0.0.0.0:$PORT
+
+    # Optional but recommended if your app serves "/"
+    healthCheckPath: /
+
+    autoDeploy: true
+
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"

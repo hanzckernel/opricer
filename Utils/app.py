@@ -1,29 +1,21 @@
-import math
+from typing import Dict
 
-import pandas as pd
+import dash
+import dash.html as html
 import flask
-import dash
-import dash_core_components as dcc
-import dash_html_components as html
-import dateutil.parser
-
-# from sfManager import sf_Manager
-
-import dash
-import dash_html_components as html
 
 
-class CustomDash(dash.Dash):
-    def interpolate_index(self, **kwargs):
+class OpricerDash(dash.Dash):
+    def interpolate_index(self, **kwargs: Dict[str, str]) -> str:
         # Inspect the arguments by printing them
-        kwargs['app_entry'] = '''<div id="react-entry-point">
+        kwargs["app_entry"] = """<div id="react-entry-point">
                                 <div class="_dash-loading">
                                     <div class="progress">
                                         <div class="indeterminate"></div>
                                     </div>
                                 </div>
-                                </div>'''
-        return '''
+                                </div>"""
+        return """
         <!DOCTYPE html>
         <html>
             <head>
@@ -53,18 +45,15 @@ class CustomDash(dash.Dash):
             </body>
 
         </html>
-        '''.format(
-            css=kwargs['css'],
-            app_entry=kwargs['app_entry'],
-            config=kwargs['config'],
-            scripts=kwargs['scripts'],
-            renderer=kwargs['renderer'])
+        """.format(
+            css=kwargs["css"],
+            app_entry=kwargs["app_entry"],
+            config=kwargs["config"],
+            scripts=kwargs["scripts"],
+            renderer=kwargs["renderer"],
+        )
 
 
 server = flask.Flask(__name__)
-app = CustomDash(__name__, server=server,
-                 assets_folder="./src", assets_ignore=".scss")
+app = OpricerDash(__name__, server=server, assets_folder="./src", assets_ignore=".scss")
 app.config.suppress_callback_exceptions = True
-
-
-# sf_manager = sf_Manager()

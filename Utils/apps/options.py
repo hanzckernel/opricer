@@ -5,8 +5,9 @@ import flask
 import dash
 from dash.dependencies import Input, Output, State
 import dash_daq as daq
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc, html
+# import dash_core_components as dcc
+# import dash_html_components as html
 import plotly.plotly as py
 import numpy as np
 

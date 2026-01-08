@@ -9,121 +9,116 @@ from math import sqrt
 from opricer.tools.mathtool import force_broadcast, back_quad, ArrFunc, poly_transform_
 from scipy.linalg import cholesky
 from scipy.integrate import quad
-# from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
-
+from typing import Callable, List, Optional, Tuple, Union, Any
 
 class GenericMCSolver(abc.ABC):
 
-    def __init__(self, path_no=200, asset_no=20, time_no=100, high_val=5, low_val=0):
+    def __init__(self, path_no: int = 200, asset_no: int = 20, time_no: int = 100, 
+                 high_val: float = 5.0, low_val: float = 0.0):
         self.asset_no = asset_no
         self.time_no = time_no
         self.path_no = path_no
         self.low_val = low_val
         self.high_val = high_val
+        self.dt: float = 0.0
+        self.time_samples: np.ndarray = np.array([])
+        self.asset_samples: np.ndarray = np.array([])
+        self.sqrt_dt: float = 0.0
 
     @abc.abstractmethod
-    def get_price(self, model):
+    def get_price(self, model: Any) -> np.ndarray:
         pass
 
-    @classmethod
-    def _gen_grid(cls, model, low_val, high_val, asset_no, time_no,
-                  start_time, end_time):
-        cls.dt = (end_time - start_time)/(time_no-1)
-        cls.time_samples = np.linspace(start_time, end_time, time_no)
-        cls.asset_samples = np.linspace(low_val, high_val, asset_no, axis=0)
-        cls.sqrt_dt = sqrt(cls.dt)
-
-    @abc.abstractmethod
-    def get_price(self, model):
-        pass
-
+    def _gen_grid(self, model: Any, low_val: np.ndarray, high_val: np.ndarray, 
+                  asset_no: int, time_no: int, start_time: float, end_time: float) -> None:
+        self.dt = (end_time - start_time)/(time_no-1)
+        self.time_samples = np.linspace(start_time, end_time, time_no)
+        self.asset_samples = np.linspace(low_val, high_val, asset_no, axis=0) 
+        self.sqrt_dt = sqrt(self.dt)
 
 class EurMCSolver(GenericMCSolver):
 
-    def __call__(self, model):
+    def __call__(self, model: Any) -> np.ndarray:
         return self.get_price(model)
 
     @staticmethod
-    def _gen_coeff(model):
+    def _gen_coeff(model: Any) -> Tuple[Callable, Callable]:
         try:
-            def coef_dt(asset, t):
+            def coef_dt(asset: np.ndarray, t: float) -> np.ndarray:
                 return asset * (model.int_rate(t) - ArrFunc(model.div, asset))
 
-            def coef_dW(asset, t):
+            def coef_dW(asset: np.ndarray, t: float) -> np.ndarray:
                 return asset * ArrFunc(model._vol, asset, t)
             return coef_dW, coef_dt
         except AttributeError:
-            raise('Underlying not attached')
+            raise ValueError('Underlying not attached')
 
-    def _gen_parameter(self, model, time_no):
-        """
-        We use asset_no and time_no as parameters so that we can make it sparser
-        when running LS.
-        """
-        low_val, high_val = model.spot_price * \
-            self.low_val, model.spot_price * self.high_val
+    def _gen_parameter(self, model: Any, time_no: int) -> None:
+        low_val = model.spot_price * self.low_val
+        high_val = model.spot_price * self.high_val
         self._gen_grid(model, low_val, high_val, self.asset_no, time_no,
-                       0, model.time_to_maturity)
+                       0.0, model.time_to_maturity)
 
-    def _gen_path(self, model):
+    def _gen_path(self, model: Any) -> np.ndarray:
         self._gen_parameter(model, self.time_no)
         coef_dW, coef_dt = self._gen_coeff(model)
         random_set = randn(self.path_no, self.time_no)
         asset = np.tile(self.asset_samples.reshape(-1, 1), (1, self.path_no))
         asset_lst = [asset.copy()]
         for idx, time in zip(range(1, self.time_no), self.time_samples[1:]):
-            asset = asset + coef_dt(asset, time) * self.dt + \
-                coef_dW(asset, time) * self.sqrt_dt * random_set[:, idx]
+            asset = asset + coef_dt(asset, time) * self.dt +                 coef_dW(asset, time) * self.sqrt_dt * random_set[:, idx]
             asset_lst.append(asset.copy())
         return np.array(asset_lst)
 
-    def get_price(self, model):
+    def get_price(self, model: Any) -> np.ndarray:
         asset = self._gen_path(model)
         payoff = model.payoff(asset).transpose()
-        disc = np.exp(-back_quad(model.int_rate,
-                                 self.time_samples))
+        disc = np.exp(-back_quad(model.int_rate, self.time_samples))
 
         disc_all = disc * payoff
-        # variance = np.var(asset, axis=0)
         payoff = np.flip(np.mean(disc_all, axis=0), axis=1)
         return payoff.transpose()
 
 
 class logMCSolver(EurMCSolver):
-    '''
-    For fast calibration if the coeff are asset-independent. More inaccurate ATM.
-    '''
+    # For fast calibration if the coeff are asset-independent. More inaccurate ATM.
 
     @staticmethod
-    def _gen_coeff(model):
-
+    def _gen_coeff(model: Any) -> Tuple[Callable, Callable]:
         try:
             strike = model.strike
             @force_broadcast
-            def coef_dt(t):
+            def coef_dt(t: float) -> float:
                 return model.int_rate(t) - model.div[0](strike) - model._vol[0](strike, t) ** 2 / 2
 
             @force_broadcast
-            def coef_dW(t):
+            def coef_dW(t: float) -> float:
                 return model._vol[0](strike, t)
             return coef_dW, coef_dt
         except AttributeError:
-            raise('Underlying not attached')
+            raise ValueError('Underlying not attached')
 
-    def _gen_path(self, model):
+    def _gen_path(self, model: Any) -> np.ndarray:
         coef_dW, coef_dt = self._gen_coeff(model)
         self._gen_parameter(model, self.time_no)
-        # Note the difference in order for this special one
-        random_set = randn(self.time_no, self.path_no)
+        random_set = randn(self.path_no, self.time_no)
         increment = 1 + np.sum(coef_dt(self.time_samples)) * self.dt + self.sqrt_dt * \
             random_set @ coef_dW(self.time_samples.reshape(-1, 1))
         return np.outer(increment, self.asset_samples)
 
+    def get_price(self, model: Any) -> np.ndarray:
+        asset = self._gen_path(model)
+        payoff = model.payoff(asset)
+        cum_int = back_quad(model.int_rate, self.time_samples)
+        disc_factor = np.exp(-cum_int[0])
+        price = np.mean(payoff, axis=0) * disc_factor
+        return price
+
 
 class BarMCSolver(EurMCSolver):
 
-    def _gen_path(self, model):
+    def _gen_path(self, model: Any) -> np.ndarray:
         self._gen_parameter(model, self.time_no)
         lower_bar, higher_bar = model.barrier
         coef_dW, coef_dt = self._gen_coeff(model)
@@ -131,67 +126,61 @@ class BarMCSolver(EurMCSolver):
         asset = np.tile(self.asset_samples.reshape(-1, 1), (1, self.path_no))
         asset_lst = [asset.copy()]
         for idx, time in zip(range(1, self.time_no), self.time_samples[1:]):
-            asset = asset + coef_dt(asset, time) * self.dt + self.sqrt_dt * \
-                coef_dW(asset, time) * random_set[:, idx]
+            asset = asset + coef_dt(asset, time) * self.dt + self.sqrt_dt *                 coef_dW(asset, time) * random_set[:, idx]
             damp_layer = np.where((asset <= lower_bar) | (asset >= higher_bar))
             asset[damp_layer] = np.nan
             asset_lst.append(asset.copy())
-        asset_lst[np.isnan(asset)] = model.rebate
-        return asset_lst
+        
+        asset_arr = np.array(asset_lst)
+        asset_arr[np.isnan(asset_arr)] = model.rebate
+        return asset_arr
 
 
 class AmeMCSolver(EurMCSolver):
-    '''
-    Longstaff-Schwartz
-    '''
+    # Longstaff-Schwartz
 
-    def get_price(self, model):
-        '''asset_lst.shape = (self.BTime_no, self.asset_no, self.BPath_no)'''
+    def get_price(self, model: Any) -> np.ndarray:
         asset_lst = self._gen_path(model)
-
-        # generate linear regression model for Longstaff-Schwartz algorithm
         reg_model = LinearRegression()
         cum_intrate = back_quad(model.int_rate, self.time_samples)
         lst_payoff = model.payoff(asset_lst)
         stopping_idx = -np.ones((self.asset_no, self.path_no), dtype=int)
-
-        # Stopping_val records the stock_price and the timespot it is recorded (stopping_idx)
         stopping_val = [lst_payoff[-1], stopping_idx]
         poly_axis = -1 if hasattr(model, 'AssetCount') else None
+        
         for time_idx in range(-2, -self.time_no - 1, -1):
             asset_left = asset_lst[time_idx]
             non_zero_idx = np.nonzero(lst_payoff[time_idx])
             X_axis = asset_left[non_zero_idx]
-            Y_axis = (np.exp(cum_intrate[- stopping_val[1] - 1] - cum_intrate[-time_idx - 1]) *
-                      stopping_val[0])[non_zero_idx]
+            
+            stop_idx_safe = -stopping_val[1] - 1
+            curr_idx_safe = -time_idx - 1
+            discount_factor = np.exp(cum_intrate[stop_idx_safe] - cum_intrate[curr_idx_safe])
+            Y_axis = (discount_factor * stopping_val[0])[non_zero_idx]
+            
             if X_axis.size != 0:
                 X_poly, total_poly = [poly_transform_(x, axis=poly_axis, deg=3) for x in [
                     X_axis, asset_left]]
-                '''total_poly.shape = (4, self.BPath_no, self.asset_no)'''
                 reg_model.fit(X_poly, Y_axis)
                 Y_pred = total_poly @ reg_model.coef_ + reg_model.intercept_
                 Y_pred = np.clip(Y_pred, 0, None)
                 X_payoff = lst_payoff[time_idx]
-                stopping_val[1][X_payoff > Y_pred] = time_idx
-                stopping_val[0] = np.where(
-                    X_payoff > Y_pred, X_payoff, stopping_val[0])
+                
+                update_mask = X_payoff > Y_pred
+                stopping_val[1][update_mask] = time_idx
+                stopping_val[0] = np.where(update_mask, X_payoff, stopping_val[0])
             else:
                 break
-        # fair_price = (stopping_val[0] * (np.exp(
-        #     cum_intrate[-stopping_val[1] - 1])-cum_intrate[-1])).sum(axis=1)/self.path_no
+
         undiscounted = (
             stopping_val[0] * np.exp(cum_intrate[-stopping_val[1] - 1])).sum(axis=1)/self.path_no
         fair_price2 = np.outer(undiscounted, np.exp(-cum_intrate))
-        # first_nonzero = np.argwhere(stopping_val[0] == 0)[1]
         return fair_price2
 
 
 class BasketMCSolver(EurMCSolver):
 
-    def _gen_path(self, model):
-        """
-        generate path in shape: (asset_no, path_no, AssetCount)
-        """
+    def _gen_path(self, model: Any) -> np.ndarray:
         self._gen_parameter(model, self.time_no)
         corr_sqrt = cholesky(model.corr_mat)
         coef_dW, coef_dt = self._gen_coeff(model)
@@ -201,32 +190,15 @@ class BasketMCSolver(EurMCSolver):
         asset = np.tile(self.asset_samples, (1, self.path_no, 1))
         asset_lst = [asset.copy()]
         for idx, time in zip(range(1, self.time_no), self.time_samples[1:]):
-            asset = asset + coef_dt(asset, time) * self.dt + \
-                coef_dW(asset, time) * self.sqrt_dt * random_set[:, idx]
+            asset = asset + coef_dt(asset, time) * self.dt +                 coef_dW(asset, time) * self.sqrt_dt * random_set[:, idx]
             asset_lst.append(asset.copy())
         return np.array(asset_lst)
 
-    def get_price(self, model):
+    def get_price(self, model: Any) -> np.ndarray:
         return super().get_price(model)
 
 
 class BasketAmeSolver(BasketMCSolver, AmeMCSolver):
 
-    def get_price(self, model):
+    def get_price(self, model: Any) -> np.ndarray:
         return AmeMCSolver.get_price(self, model)
-
-
-# a = models.Underlying(datetime.datetime(2010, 1, 1), 100)
-# a1 = models.Underlying(datetime.datetime(2010, 1, 1), 200)
-# b = models.EurOption(datetime.datetime(2011, 1, 1), 'call')
-# b1 = models.AmeOption(datetime.datetime(2011, 1, 1), 'call')
-# c = models.BasketOption(datetime.datetime(2011, 1, 1), 'call')
-# d = models.BarOption(datetime.datetime(2011, 1, 1), 'put')
-# b._attach_asset(100, a)
-# b1._attach_asset(100, a1)
-# c._attach_asset(100, a, a1)
-# c.set_corr(-0.9)
-# # solver2 = pde.AmeSolver(high_val=2, low_val=0)
-# MSolver = BasketMCSolver()
-# print(MSolver(c))
-# print(c.corr_mat)

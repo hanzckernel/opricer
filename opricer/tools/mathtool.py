@@ -9,6 +9,7 @@ Created on Mon Apr 29 20:08:02 2019
 import numpy as np
 from functools import wraps
 from sklearn.preprocessing import PolynomialFeatures
+from itertools import combinations_with_replacement, chain
 
 
 def force_broadcast(func):
@@ -78,8 +79,10 @@ def poly_transform_(arr, axis=None, deg=2):
     axis = axis if axis else -1
     para_no = arr.shape[axis]
     arr = np.moveaxis(arr, axis, -1)
-    comb = PolynomialFeatures._combinations(
-        para_no, deg, interaction_only=False, include_bias=False)
+    comb = chain.from_iterable(
+        combinations_with_replacement(range(para_no), i)
+        for i in range(1, deg + 1)
+    )
     poly_deg = np.vstack(
         [np.bincount(c, minlength=para_no) for c in comb])
     poly_deg = poly_deg.reshape(

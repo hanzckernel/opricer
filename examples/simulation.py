@@ -18,10 +18,10 @@ a = models.Underlying(datetime.datetime(2010, 1, 1, tzinfo=tz), 100)
 a1 = models.Underlying(datetime.datetime(2010, 1, 1, tzinfo=tz), 200)
 
 # Initialize Options with UTC
-b = models.EurOption('call', datetime.datetime(2011, 1, 1, tzinfo=tz))
-b1 = models.AmeOption('call', datetime.datetime(2011, 1, 1, tzinfo=tz))
-c = models.BasketOption('call', datetime.datetime(2011, 1, 1, tzinfo=tz))
-d = models.BarOption('put', datetime.datetime(2011, 1, 1, tzinfo=tz))
+b = models.EurOption(datetime.datetime(2011, 1, 1, tzinfo=tz), 'call')
+b1 = models.AmeOption(datetime.datetime(2011, 1, 1, tzinfo=tz), 'call')
+c = models.BasketOption(datetime.datetime(2011, 1, 1, tzinfo=tz), 'call')
+d = models.BarOption(datetime.datetime(2011, 1, 1, tzinfo=tz), 'put')
 
 # Attach Assets
 b._attach_asset(100, a)

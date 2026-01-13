@@ -2,6 +2,11 @@
   "general": {
     "previewFeatures": true
   },
+  "security": {
+    "auth": {
+      "selectedType": "oauth-personal"
+    }
+  },
   "tools": {
     "shell": {
       "enableInteractiveShell": true

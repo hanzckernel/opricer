@@ -1,4 +1,3 @@
-
 import numpy as np
 from opricer.model import models
 import datetime
@@ -67,7 +66,8 @@ class EurMCSolver(GenericMCSolver):
         asset = np.tile(self.asset_samples.reshape(-1, 1), (1, self.path_no))
         asset_lst = [asset.copy()]
         for idx, time in zip(range(1, self.time_no), self.time_samples[1:]):
-            asset = asset + coef_dt(asset, time) * self.dt +                 coef_dW(asset, time) * self.sqrt_dt * random_set[:, idx]
+            asset = asset + coef_dt(asset, time) * self.dt + \
+                coef_dW(asset, time) * self.sqrt_dt * random_set[:, idx]
             asset_lst.append(asset.copy())
         return np.array(asset_lst)
 
@@ -81,7 +81,7 @@ class EurMCSolver(GenericMCSolver):
         return payoff.transpose()
 
 
-class logMCSolver(EurMCSolver):
+class LogMCSolver(EurMCSolver):
     # For fast calibration if the coeff are asset-independent. More inaccurate ATM.
 
     @staticmethod
@@ -126,7 +126,8 @@ class BarMCSolver(EurMCSolver):
         asset = np.tile(self.asset_samples.reshape(-1, 1), (1, self.path_no))
         asset_lst = [asset.copy()]
         for idx, time in zip(range(1, self.time_no), self.time_samples[1:]):
-            asset = asset + coef_dt(asset, time) * self.dt + self.sqrt_dt *                 coef_dW(asset, time) * random_set[:, idx]
+            asset = asset + coef_dt(asset, time) * self.dt + self.sqrt_dt * \
+                coef_dW(asset, time) * random_set[:, idx]
             damp_layer = np.where((asset <= lower_bar) | (asset >= higher_bar))
             asset[damp_layer] = np.nan
             asset_lst.append(asset.copy())
@@ -190,7 +191,8 @@ class BasketMCSolver(EurMCSolver):
         asset = np.tile(self.asset_samples, (1, self.path_no, 1))
         asset_lst = [asset.copy()]
         for idx, time in zip(range(1, self.time_no), self.time_samples[1:]):
-            asset = asset + coef_dt(asset, time) * self.dt +                 coef_dW(asset, time) * self.sqrt_dt * random_set[:, idx]
+            asset = asset + coef_dt(asset, time) * self.dt + \
+                coef_dW(asset, time) * self.sqrt_dt * random_set[:, idx]
             asset_lst.append(asset.copy())
         return np.array(asset_lst)
 

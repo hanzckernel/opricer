@@ -1,58 +1,42 @@
 from dash import dcc, html
+import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
-from dash.development.base_component import Component
-from Utils.app import app
-from Utils.apps import stock, options
+from webapp.app import app
+from webapp.apps import stock, options
 
-
-app.layout = html.Div(
-    [
-        # header
-        html.Div(
-            [
-                html.Section(
-                    [
-                        html.H1("Option Pricing Tool", className="title"),
-                        html.H5(
-                            "pricing UI powered by Numpy & Dash",
-                            className="title",
-                        ),
-                    ],
-                    className="container",
-                ),
-                # tabs
-                html.Div(
-                    [
-                        dcc.Tabs(
-                            id="tabs",
-                            children=[
-                                dcc.Tab(label="Stock Market", value="stock_tab"),
-                                dcc.Tab(label="Option Pricing", value="option_tab"),
-                            ],
-                            value="option_tab",
-                        )
-                    ],
-                    className="tabs_div",
-                ),
-                # Tab content
-                html.Div(id="tab_content", className="row"),
-            ],
-            style={"margin": "0%"},
-        ),
+# Define the Navigation Bar
+navbar = dbc.NavbarSimple(
+    children=[
+        dbc.NavItem(dbc.NavLink("Stock Market", href="/stock", id="stock-link")),
+        dbc.NavItem(dbc.NavLink("Option Pricing", href="/options", id="options-link")),
     ],
-    className="content-main",
+    brand="Option Pricing Tool",
+    brand_href="/",
+    color="primary",
+    dark=True,
+    fluid=True,
 )
 
+# Define the main layout
+app.layout = html.Div(
+    [
+        dcc.Location(id="url", refresh=False),
+        navbar,
+        dbc.Container(id="page-content", fluid=True, className="mt-4"),
+    ]
+)
 
-@app.callback(Output("tab_content", "children"), [Input("tabs", "value")])
-def render_content(tab: str) -> Component:
-    if tab == "stock_tab":
-        return stock.layout
-    elif tab == "option_tab":
-        return options.layout
-    else:
-        return stock.layout
-
+# Callback to handle routing
+@app.callback(
+    [Output("page-content", "children"), Output("stock-link", "active"), Output("options-link", "active")],
+    [Input("url", "pathname")]
+)
+def render_page_content(pathname):
+    if pathname == "/" or pathname == "/stock":
+        return stock.layout, True, False
+    elif pathname == "/options":
+        return options.layout, False, True
+    return dbc.Alert("404: Page not found", color="danger"), False, False
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run(debug=True)

@@ -1,0 +1,60 @@
+# Development Log
+
+## 2026-01-13
+- **Initiated Refactoring:** Started the modernization of the `opricer` project.
+- **Analysis:** Analyzed the current project structure.
+    - `opricer` is the main package.
+    - `Utils` contains the web application.
+    - `setup.py` is legacy; `pyproject.toml` is present.
+    - `opricer/__init__.py` is currently empty (good).
+    - `opricer/simulation.py` acts as a test script.
+- **Plan:** Created `TODO.md` with a 5-stage plan covering structure, refactoring, testing, and web app integration.
+- **Refactoring:**
+    - Renamed `Utils` to `webapp`.
+    - Removed `setup.py`.
+    - Moved `opricer/simulation.py` to `examples/simulation.py`.
+    - Updated `opricer/__init__.py`.
+    - Refactored `opricer/model/models.py` using `dataclasses` and improved type hints.
+    - Refactored `opricer/algo/mc.py`, `pde.py`, and `analytics.py` for type safety and consistency.
+    - Updated `LogMCSolver` naming.
+- **Testing:**
+    - Configured `pytest` in `pyproject.toml`.
+    - Fixed issues in `pde.py` (`IndexError` due to classmethod usage).
+    - Updated `test_algo.py` and added `test_models.py`.
+    - All tests passed.
+- **Web App:**
+    - Verified `webapp` imports compatibility with refactored `opricer` module.
+    - Updated `GEMINI.md` with test instructions.
+    - Fixed `app.run_server` deprecation in `index.py`.
+    - Added error handling for LIBOR scraping in `options.py`.
+    - Confirmed app startup on localhost:8050.
+- **Finalization:**
+    - Updated `examples/simulation.py` to match new API.
+    - Created `GEMINI.md` with project guidelines.
+    - Updated `README.md` with modern documentation.
+    - Project modernization complete (Core).
+- **UI Modernization Planning:**
+    - Inspected `webapp` structure. It uses legacy `Materialize CSS` with custom injections.
+    - Formulated a 5-stage plan to migrate to `dash-bootstrap-components` for a responsive, modern UI.
+    - Updated `TODO.md` with the new UI stages.
+- **UI Implementation:**
+    - Installed `dash-bootstrap-components`.
+    - Migrated `app.py` to use the `FLATLY` theme.
+    - Refactored `index.py` with `dbc.Navbar`.
+    - Rewrote `stock.py` and `options.py` using `dbc.Row`, `dbc.Col`, and `dbc.Card`.
+    - Removed legacy `webapp/src` directory.
+- **Project Completion:**
+    - All stages in `TODO.md` are complete.
+    - Documentation updated.
+- **E2E Testing:**
+    - Decided to implement browser-based end-to-end tests using `playwright`.
+    - Updated `TODO.md` with Stage 7.
+    - Implemented `test_e2e.py` covering navigation, stock input, and option pricing flow.
+    - Resolved `multiprocessing` pickle issue by moving `run_app` to module level.
+    - Resolved `TimeoutError` in modal interactions by using `force=True` click.
+    - All E2E tests passed.
+- **Bug Fix:**
+    - Fixed modal interaction issue where inputs were unclickable due to legacy Materialize CSS/JS conflicts.
+    - Removed legacy assets from `webapp/assets`.
+    - Added `close_button=True` to `dbc.ModalHeader`.
+    - Verified fix by running E2E tests without `force=True` and checking input values.

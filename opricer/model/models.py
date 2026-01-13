@@ -10,34 +10,44 @@ import abc
 import numpy as np
 from datetime import datetime, timezone
 from typing import List, Callable, Union, Optional, Any, Tuple
+from dataclasses import dataclass, field
 
-def int_rate(t: float) -> float: 
+def default_int_rate(t: float) -> float: 
     return 0.05
 
 class World(abc.ABC):
+    """
+    Placeholder for future World/Market environment settings.
+    """
     pass
 
+@dataclass
 class Underlying:
     """
-    We currently use prescribed drift and volatility for simplicity of the
-    project. Implied volatility tools amongst others will be built at a
-    later phase.
-
-    We expect all time entries to be datetime form in UTC.
+    Represents an underlying asset.
+    We currently use prescribed drift and volatility for simplicity.
+    All time entries are expected to be in UTC.
     """
+    spot_time: datetime
+    spot_price: float
+    dividend: float = 0.0
+    
+    # Internal attributes initialized in __post_init__
+    time: datetime = field(init=False)
+    price: float = field(init=False)
+    vol: Callable[[Any, float], float] = field(init=False)
+    div: Callable[[Any], float] = field(init=False)
 
-    def __init__(self, spot_time: datetime, spot_price: float, dividend: float = 0.1):
-        if spot_time.tzinfo is None:
-             # Assume naive datetime is UTC if not specified, or raise error. 
-             # Here we force it to UTC for consistency.
-             self.time = spot_time.replace(tzinfo=timezone.utc)
+    def __post_init__(self):
+        if self.spot_time.tzinfo is None:
+             self.time = self.spot_time.replace(tzinfo=timezone.utc)
         else:
-             self.time = spot_time.astimezone(timezone.utc)
+             self.time = self.spot_time.astimezone(timezone.utc)
         
-        self.price = float(spot_price)
-        # Type hinting these lambdas strictly is complex without Protocol, but basic hint helps
-        self.vol: Callable[[Any, float], float] = lambda asset, t: 0.2
-        self.div: Callable[[Any], float] = lambda asset: dividend
+        self.price = float(self.spot_price)
+        # Default volatility and dividend functions
+        self.vol = lambda asset, t: 0.2
+        self.div = lambda asset: self.dividend
 
 class Option(abc.ABC):
 
@@ -48,10 +58,10 @@ class Option(abc.ABC):
         else:
             self.expiry = expiry_date.astimezone(timezone.utc)
         
-        # Initialize attributes that will be set later
+        # Initialize attributes
         self.strike: float = 0.0
-        self.int_rate: Optional[Callable[[float], float]] = None
-        self.spot_price: Union[List[float], np.ndarray] = []
+        self.int_rate: Callable[[float], float] = default_int_rate
+        self.spot_price: Union[List[float], np.ndarray] = np.array([])
         self.currency: List[Any] = []
         self._time: List[datetime] = []
         self._vol: List[Callable] = [] 
@@ -59,23 +69,25 @@ class Option(abc.ABC):
         self.time_to_maturity: float = 0.0
 
     def _attach_asset(self, strike_price: float, *underlyings: Underlying) -> None:
+        """
+        Attaches underlying assets to the option.
+        """
         self.strike = float(strike_price)
-        self.int_rate = int_rate
-        self.spot_price = []
+        # Reset lists
+        spot_prices = []
         self.currency = []
         self._time = []
         self._vol = [] 
         self.div = []
         
         for underlying in underlyings:
-            self.spot_price.append(underlying.price)
+            spot_prices.append(underlying.price)
             self._time.append(underlying.time)
             self._vol.append(underlying.vol)
             self.div.append(underlying.div)
             
-        self.spot_price = np.array(self.spot_price)
+        self.spot_price = np.array(spot_prices)
         
-        # Ensure all times are consistent
         if not self._time:
              raise ValueError('No underlyings provided')
 
@@ -92,33 +104,34 @@ class Option(abc.ABC):
         elif self.otype == 'put':
             return np.clip(self.strike - price, 0, None).astype(float)
         else:
-            raise ValueError('Incorrect option type')
+            raise ValueError(f'Incorrect option type: {self.otype}')
 
 class EurOption(Option):
     """
     Standard European Option.
     """
-    def __init__(self, otype: str, expiry_date: datetime):
-        super().__init__(expiry_date=expiry_date, otype=otype)
+    pass
 
 class AmeOption(Option):
     """
     Standard American Option.
     """
-    def __init__(self, otype: str, expiry_date: datetime):
-        super().__init__(expiry_date=expiry_date, otype=otype)
+    pass
 
 class BarOption(EurOption, AmeOption):  
     """
     Barrier Option (Knock-out).
+    Inherits from EurOption and AmeOption to support both pricing methods where applicable.
     """
 
-    def __init__(self, otype: str, expiry: datetime, strike_price: float = 10.0, 
+    def __init__(self, expiry: datetime, otype: str, strike_price: float = 10.0, 
                  barrier: List[Optional[float]] = [0, None], rebate: float = 5.0):
-        super().__init__(otype, expiry)
+        # Initialize with EurOption's init (which is Option's init)
+        EurOption.__init__(self, expiry, otype)
+        self.strike = strike_price
         self.rebate = rebate
-        self._barrier: np.ndarray = np.array([0.0, np.inf]) # Default initialization
-        self.barrier = barrier # Use setter
+        self._barrier: np.ndarray = np.array([0.0, np.inf])
+        self.barrier = barrier 
 
     @property
     def barrier(self) -> np.ndarray:
@@ -127,7 +140,6 @@ class BarOption(EurOption, AmeOption):
     @barrier.setter
     def barrier(self, val: Union[List[Optional[float]], np.ndarray]) -> None:
         try:
-            # Handle None as infinity or 0 depending on position, logic adapted from original
             processed_val = []
             if val[0] is None: processed_val.append(0.0)
             else: processed_val.append(float(val[0]))
@@ -136,19 +148,17 @@ class BarOption(EurOption, AmeOption):
             else: processed_val.append(float(val[1]))
 
             arr_val = np.array(processed_val, dtype=float)
-            
-            # Broadcast to ensure shape
             arr_val = np.broadcast_to(arr_val, (2,))
             
+            # Adjust barrier based on strike price logic (Knock-out)
+            # If strike is within the barrier, the barrier is valid.
+            # If strike is outside, logic might be inverted, but here we assume standard knock-out
             self._barrier = np.where(
                 [self.strike < arr_val[0], self.strike > arr_val[1]], 
                 [0, np.inf], 
                 arr_val
             )
         except (AttributeError, TypeError, IndexError):
-             # Fallback or re-raise if strictly needed, original code had broad except
-             # Here we assume val might be directly usable if simple setter failed
-             # But for safety, let's stick to the logic above or raise
              raise ValueError("Wrong barrier input form")
 
     def _attach_asset(self, barrier: List[Optional[float]], strike_price: float, *underlyings: Underlying) -> None:
@@ -164,7 +174,6 @@ class BarOption(EurOption, AmeOption):
                 return super().payoff(price)
         else:
             final = super().payoff(price)
-            # Ensure price is handled as array
             price_arr = np.asarray(price)
             damp_layer = np.where((price_arr <= lower_bar) | (price_arr >= higher_bar))
             final[damp_layer] = self.rebate
@@ -174,11 +183,6 @@ class BasketOption(Option):
 
     def _attach_asset(self, strike_price: float, *underlyings: Underlying) -> None:
         super()._attach_asset(strike_price, *underlyings)
-        # Convert lists to arrays
-        self.spot_price = np.array(self.spot_price)
-        # _vol and div are lists of functions/lambdas, keeping them as list or converting if needed
-        # Original code converted them to array, which might be object array for functions
-        
         self.AssetCount = len(self._vol)
         self.corr_mat = np.identity(self.AssetCount)
         self.weight = np.full(self.AssetCount, 1.0/self.AssetCount)
@@ -187,12 +191,6 @@ class BasketOption(Option):
         """
         Load the correlation matrix using only upper-triangle entries.
         """
-        # Validate length
-        expected_len = (self.AssetCount * (self.AssetCount - 1)) // 2
-        if len(corr_lst) != expected_len:
-             # Just a warning or strict error? Original didn't check length explicitly before assignment
-             pass
-             
         self.corr_mat[np.triu_indices(self.AssetCount, 1)] = corr_lst
         self.corr_mat[np.tril_indices(self.AssetCount, -1)] = corr_lst
 
@@ -203,8 +201,6 @@ class BasketOption(Option):
             raise ValueError('Number of weights does not match number of assets')
 
     def payoff(self, price: np.ndarray) -> Union[float, np.ndarray]:
-        # Price here is expected to be (..., AssetCount) or similar structure
-        # Original: sum_price = (price * self.weight).sum(axis=-1)
-        # We assume price matches weight dimensions on the last axis
+        # Weighted sum of asset prices
         sum_price = (price * self.weight).sum(axis=-1)
         return super().payoff(sum_price)

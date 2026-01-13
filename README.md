@@ -1,14 +1,65 @@
-# option-pricing
+# Option Pricing Tool
 
-This package currently include American/European/barrier options with finite-difference scheme.
-The FD scheme currently only works for single-dimensional option, while Monte-Carlo supports higher-dimensional Basket options. 
+This package includes American, European, and Barrier option pricing models using Finite Difference (PDE) and Monte Carlo methods.
+It features a modern web interface powered by **Dash** and **Dash Bootstrap Components**.
 
-### American Option
-We use Longstaff-Schwartz algorithm to price Basket American options. The primal-dual algorithms is not included for computation cost reason.
+## Features
+- **Core Library (`opricer`)**:
+    - **Models**: Standardized option models (European, American, Barrier, Basket).
+    - **Algorithms**: 
+        - Analytic Solver (Black-Scholes).
+        - PDE Solvers (Finite Difference).
+        - Monte Carlo Solvers (Euler-Maruyama, Longstaff-Schwartz for American options).
+- **Web App (`webapp`)**:
+    - Interactive Dashboard with Stock Market visualization and Option Pricing tools.
+    - Responsive, mobile-friendly UI using Bootstrap.
+    - Real-time data fetching (Yahoo Finance, NewsAPI).
 
-### European Option
-Tuning LVM and calibration of implied volatility.
+## Installation
 
+### Prerequisites
+- Python 3.12+
+- `conda` (recommended)
 
-**Next step:** Working on small-scale test file, as well as schema of implied volatility calibration.
-:coffee: and :tea:, :sunrise_over_mountains: and :stars:
+### Setup
+1.  Clone the repository.
+2.  Install dependencies:
+    ```bash
+    pip install .
+    # OR
+    pip install -r requirements.txt
+    ```
+
+## Usage
+
+### Library
+```python
+from opricer.model import models
+from opricer.algo import analytics
+from datetime import datetime, timezone
+
+expiry = datetime(2025, 1, 1, tzinfo=timezone.utc)
+underlying = models.Underlying(datetime.now(timezone.utc), 100.0)
+option = models.EurOption(expiry, 'call')
+option._attach_asset(100.0, underlying)
+
+solver = analytics.AnalyticSolver()
+price = solver(option)
+print(price)
+```
+
+### Web App
+To run the web application:
+```bash
+python index.py
+```
+Navigate to `http://127.0.0.1:8050/`.
+
+## Testing
+Run unit tests with `pytest`:
+```bash
+pytest
+```
+
+## License
+MIT License

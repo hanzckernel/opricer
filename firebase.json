@@ -1,0 +1,20 @@
+{
+  "hosting": {
+    "site": "opricer",
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "opricer",
+          "region": "europe-west1"
+        }
+      }
+    ]
+  }
+}

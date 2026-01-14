@@ -4,6 +4,9 @@ from dash.dependencies import Input, Output
 from webapp.app import app
 from webapp.apps import stock, options
 
+# Expose server for WSGI
+server = app.server
+
 # Define the Navigation Bar
 navbar = dbc.NavbarSimple(
     children=[

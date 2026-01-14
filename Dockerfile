@@ -4,7 +4,6 @@ WORKDIR /app
 COPY . /app
 
 RUN pip install --upgrade pip \
- && pip install -r requirements.txt \
  && pip install .
 
 ENV PORT=8000

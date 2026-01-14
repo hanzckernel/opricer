@@ -5,7 +5,7 @@ services:
     plan: free
 
     # If your repo's Python package code is needed at runtime, installing "." is helpful.
-    buildCommand: pip install -r requirements.txt && pip install .
+    buildCommand: pip install .
 
     # Most Heroku-style Procfiles for Flask look like: "web: gunicorn index:app"
     # Render sets PORT automatically; bind gunicorn to it.

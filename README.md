@@ -26,8 +26,6 @@ It features a modern web interface powered by **Dash** and **Dash Bootstrap Comp
 2.  Install dependencies:
     ```bash
     pip install .
-    # OR
-    pip install -r requirements.txt
     ```
 
 ## Usage

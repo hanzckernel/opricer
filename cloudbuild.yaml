@@ -1,11 +1,11 @@
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/opricer:$COMMIT_SHA', '.']
+    args: ['build', '-t', 'europe-west1-docker.pkg.dev/$PROJECT_ID/opricer-repo/opricer:$COMMIT_SHA', '.']
   
   # Push the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/opricer:$COMMIT_SHA']
+    args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/opricer-repo/opricer:$COMMIT_SHA']
   
   # Deploy container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -15,10 +15,10 @@ steps:
       - 'deploy'
       - 'opricer'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/opricer:$COMMIT_SHA'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/opricer-repo/opricer:$COMMIT_SHA'
       - '--region'
       - 'europe-west1'
       - '--allow-unauthenticated'
 
 images:
-  - 'gcr.io/$PROJECT_ID/opricer:$COMMIT_SHA'
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/opricer-repo/opricer:$COMMIT_SHA'
